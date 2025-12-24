@@ -3,28 +3,46 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Undercover (3 à 10 joueurs) - Smartphone</title>
+  <title>Undercover (QR multi-smartphones)</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:12px;background:#f6f6f6}
     h1{font-size:18px;margin:0 0 10px}
     .panel{background:#fff;border:1px solid #ddd;border-radius:12px;padding:12px;margin:10px 0}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    button{padding:10px 12px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:700}
+    button{padding:10px 12px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:800}
     button.secondary{background:#e9e9e9;color:#111}
-    input,select{padding:10px;border-radius:10px;border:1px solid #ddd;background:#fff}
+    input{padding:10px;border-radius:10px;border:1px solid #ddd;background:#fff}
     .pill{border:1px solid #ddd;background:#fff;border-radius:999px;padding:6px 10px;font-size:13px}
     .big{font-size:22px;font-weight:900}
     .muted{opacity:.75}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+    .card{border:1px solid #ddd;border-radius:12px;background:#fafafa;padding:10px}
+    .qr{display:flex;justify-content:center;align-items:center;background:#fff;border:1px solid #ddd;border-radius:12px;padding:8px}
     .list{display:grid;gap:8px}
-    .card{border:1px solid #ddd;border-radius:12px;background:#fafafa;padding:10px;cursor:pointer}
+    .pitem{border:1px solid #ddd;border-radius:12px;background:#fafafa;padding:10px;cursor:pointer}
     .dead{opacity:.55;text-decoration:line-through}
   </style>
 </head>
 <body>
-<h1>🕵️ Undercover — 3 à 10 joueurs (Mr White devine)</h1>
+<h1>🕵️ Undercover — QR multi-smartphones (sans serveur)</h1>
 
-<div class="panel" id="setup">
-  <div class="row">
+<!-- MODE JOUEUR (quand on ouvre avec ?p=...) -->
+<div class="panel" id="playerMode" style="display:none">
+  <div class="pill"><b>Mode joueur</b> — lis ton rôle, puis ferme la page</div>
+  <div style="margin-top:10px" class="big" id="pmRole">—</div>
+  <div class="muted" id="pmWord" style="margin-top:6px"></div>
+  <div class="panel" style="background:#fafafa">
+    <div class="muted" style="font-size:13px">
+      ✅ Une fois que tu as lu, <b>ferme</b> la page ou reviens en arrière.
+    </div>
+  </div>
+</div>
+
+<!-- MODE MJ (création + QR + gestion) -->
+<div class="panel" id="hostSetup">
+  <div class="pill"><b>Mode MJ</b> — crée la partie et affiche les QR</div>
+
+  <div class="row" style="margin-top:10px">
     <div>
       <div class="muted">Joueurs (3–10)</div>
       <input id="nPlayers" type="number" min="3" max="10" value="8"/>
@@ -46,34 +64,30 @@
       <input id="wordB" placeholder="Mot des undercover" value="Piscine" />
     </div>
     <div class="muted" style="margin-top:8px;font-size:13px">
-      Astuce : choisis des mots proches (ex : “Plage / Piscine”, “Pizza / Quiche”…)
+      Astuce : mots proches (ex : “Plage / Piscine”, “Pizza / Quiche”…)
     </div>
   </div>
 
-  <div class="row" style="margin-top:10px">
-    <button onclick="start()">Démarrer</button>
+  <div class="row">
+    <button onclick="autoConfig()">Auto config</button>
     <button class="secondary" onclick="randomPair()">Mots au hasard</button>
-    <button class="secondary" onclick="autoConfig()">Auto config</button>
+    <button onclick="startHost()">Créer + QR</button>
     <span class="pill" id="setupHint"></span>
   </div>
 </div>
 
-<div class="panel" id="reveal" style="display:none">
+<div class="panel" id="qrPanel" style="display:none">
   <div class="row" style="justify-content:space-between">
-    <div class="pill"><b>Joueur</b> <span id="pIndex"></span>/<span id="pTotal"></span></div>
-    <button class="secondary" onclick="hide()">Cacher</button>
+    <div class="pill"><b>QR codes joueurs</b> — chacun scanne le sien</div>
+    <button class="secondary" onclick="toggleQr()">Masquer / Afficher</button>
   </div>
-
-  <div style="margin-top:10px" class="big" id="roleLine">—</div>
-  <div class="muted" id="wordLine" style="margin-top:6px"></div>
-
-  <div class="row" style="margin-top:12px">
-    <button onclick="show()">Voir</button>
-    <button class="secondary" onclick="next()">Joueur suivant</button>
+  <div class="muted" style="margin-top:8px;font-size:13px">
+    👉 Donne le téléphone au joueur, il scanne <b>son QR</b> avec l’appareil photo.
   </div>
+  <div id="qrGrid" class="grid" style="margin-top:10px"></div>
 </div>
 
-<div class="panel" id="game" style="display:none">
+<div class="panel" id="hostGame" style="display:none">
   <div class="row" style="justify-content:space-between">
     <div class="pill"><b>Manche :</b> <span id="round">1</span></div>
     <div class="pill"><b>État :</b> <span id="status">Discussion</span></div>
@@ -82,11 +96,12 @@
   <div class="panel" style="background:#fafafa">
     <div class="big" id="phaseTitle">🗣️ Discussion</div>
     <div class="muted" id="phaseText" style="margin-top:6px">
-      Chacun donne un indice (un mot/une courte phrase). Puis votez pour éliminer quelqu’un.
+      Chacun donne un indice (un mot/une courte phrase). Puis votez à l’oral et éliminez.
     </div>
     <div class="row" style="margin-top:10px">
       <button onclick="toVote()">Passer au vote</button>
       <button class="secondary" onclick="newRound()">Nouvelle manche</button>
+      <button class="secondary" onclick="revealAll()">Révéler tout (fin)</button>
       <button class="secondary" onclick="restart()">Recommencer</button>
     </div>
   </div>
@@ -101,8 +116,9 @@
 </div>
 
 <script>
-let S=null;
-
+/* --------------------------
+   PAIRES DE MOTS
+--------------------------- */
 const PAIRS = [
   ["Plage","Piscine"], ["Boulangerie","Pâtisserie"], ["Chat","Chien"],
   ["Forêt","Jungle"], ["Avion","Hélicoptère"], ["Pizza","Quiche"],
@@ -111,13 +127,57 @@ const PAIRS = [
   ["Hiver","Noël"], ["Sapin","Guirlande"], ["Neige","Glace"],
 ];
 
+/* --------------------------
+   ETAT HOST (MJ)
+--------------------------- */
+let H = null; // {n,u,w,A,B,roles,alive,round,status,gameOver}
+
+/* --------------------------
+   ROUTAGE : mode joueur ?
+--------------------------- */
+(function boot(){
+  const params = new URLSearchParams(location.search);
+  const p = params.get("p");  // payload base64
+  if(p){
+    // Mode joueur
+    try{
+      const obj = JSON.parse(atob(p));
+      document.getElementById("playerMode").style.display="block";
+      document.getElementById("hostSetup").style.display="none";
+      document.getElementById("qrPanel").style.display="none";
+      document.getElementById("hostGame").style.display="none";
+
+      const roleLabel = obj.role==="Civil" ? "🙂 Civil" : (obj.role==="Undercover" ? "🕶️ Undercover" : "⬜ Mr White");
+      document.getElementById("pmRole").textContent = roleLabel;
+
+      if(obj.role==="Mr White"){
+        document.getElementById("pmWord").textContent = "Tu n’as PAS de mot. Si tu es éliminé, tu devras deviner le mot des civils.";
+      } else {
+        document.getElementById("pmWord").textContent = "Ton mot : " + obj.word;
+      }
+    } catch(e){
+      document.getElementById("playerMode").style.display="block";
+      document.getElementById("pmRole").textContent = "Lien invalide";
+      document.getElementById("pmWord").textContent = "Demande au MJ de refaire les QR codes.";
+    }
+  }
+})();
+
+/* --------------------------
+   OUTILS
+--------------------------- */
+function clamp(x,min,max){ return Math.max(min, Math.min(max, x)); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+function normalize(s){
+  return (s||"").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
 function randomPair(){
   const [a,b]=PAIRS[Math.floor(Math.random()*PAIRS.length)];
   document.getElementById("wordA").value=a;
   document.getElementById("wordB").value=b;
   document.getElementById("setupHint").textContent=`Paire : ${a} / ${b}`;
 }
-
 function autoConfig(){
   const n = clamp(+document.getElementById("nPlayers").value, 3, 10);
   let u=1,w=0;
@@ -130,14 +190,17 @@ function autoConfig(){
   document.getElementById("setupHint").textContent=`Auto : ${u} Undercover, ${w} Mr White pour ${n} joueurs.`;
 }
 
-function start(){
+/* --------------------------
+   CREATION PARTIE + QR
+--------------------------- */
+function startHost(){
   const n = clamp(+document.getElementById("nPlayers").value, 3, 10);
-  let u = clamp(+document.getElementById("nUnder").value, 1, 4);
-  let w = clamp(+document.getElementById("nWhite").value, 0, 1);
+  const u = clamp(+document.getElementById("nUnder").value, 1, 4);
+  const w = clamp(+document.getElementById("nWhite").value, 0, 1);
   const A = (document.getElementById("wordA").value||"").trim();
   const B = (document.getElementById("wordB").value||"").trim();
 
-  if(!A || !B || A.toLowerCase()===B.toLowerCase()){
+  if(!A || !B || normalize(A)===normalize(B)){
     alert("Choisis 2 mots différents.");
     return;
   }
@@ -146,79 +209,113 @@ function start(){
     return;
   }
   if(n===3 && w===1){
-    alert("À 3 joueurs, évite Mr White (trop dur). Clique Auto config 🙂");
+    alert("À 3 joueurs, évite Mr White. Clique Auto config 🙂");
     return;
   }
 
+  // roles list
   const roles=[];
   for(let i=0;i<u;i++) roles.push({role:"Undercover", word:B});
   for(let i=0;i<w;i++) roles.push({role:"Mr White", word:"(aucun mot)"});
   while(roles.length<n) roles.push({role:"Civil", word:A});
   shuffle(roles);
 
-  S={ n,u,w,A,B,roles,player:0,revealed:false,alive:Array.from({length:n},()=>true),round:1,status:"Discussion", gameOver:false };
+  H = { n,u,w,A,B,roles, alive:Array.from({length:n},()=>true), round:1, status:"Discussion", gameOver:false };
 
-  document.getElementById("setup").style.display="none";
-  document.getElementById("reveal").style.display="block";
-  document.getElementById("pTotal").textContent=n;
-  document.getElementById("setupHint").textContent="";
-  updateReveal();
+  document.getElementById("qrPanel").style.display="block";
+  document.getElementById("hostGame").style.display="block";
+
+  renderQr();
+  renderPlayers();
 }
 
-function updateReveal(){ document.getElementById("pIndex").textContent=S.player+1; hide(); }
+/* --------------------------
+   QR GENERATION (sans librairie externe)
+   -> QR via API en ligne = NON (ça dépendrait d’internet)
+   Ici : on génère un "QR-like" ? Non.
+   Solution fiable sans dépendance : utiliser un QR minimal en SVG via un micro générateur.
+   Pour rester simple et robuste, on affiche le lien + un QR via "qrserver.com" si internet.
+   Mais tu veux sans serveur : on garde quand même le lien cliquable + option QR si net.
+--------------------------- */
+function renderQr(){
+  const grid=document.getElementById("qrGrid");
+  grid.innerHTML="";
 
-function show(){
-  const r=S.roles[S.player];
-  document.getElementById("roleLine").textContent =
-    r.role==="Civil" ? "🙂 Civil" : (r.role==="Undercover" ? "🕶️ Undercover" : "⬜ Mr White");
-  document.getElementById("wordLine").textContent =
-    r.role==="Mr White" ? "Tu n’as PAS de mot. Si tu es éliminé, tu devras deviner le mot des civils."
-                        : `Ton mot : ${r.word}`;
-  S.revealed=true;
-}
+  const base = location.origin + location.pathname; // URL GitHub Pages
+  for(let i=0;i<H.n;i++){
+    const payload = btoa(JSON.stringify(H.roles[i]));
+    const url = `${base}?p=${encodeURIComponent(payload)}`;
 
-function hide(){
-  document.getElementById("roleLine").textContent="—";
-  document.getElementById("wordLine").textContent="Passe le téléphone au joueur, puis appuie sur “Voir”.";
-  S.revealed=false;
-}
+    const card=document.createElement("div");
+    card.className="card";
+    card.innerHTML = `<b>Joueur ${i+1}</b><div class="muted" style="font-size:12px;margin-top:6px">Scan ou ouvre le lien :</div>`;
+    // QR (option internet) + lien
+    const qrWrap=document.createElement("div");
+    qrWrap.className="qr";
+    // QR via service public (nécessite internet). Si pas de net, le lien reste utilisable.
+    const img=document.createElement("img");
+    img.alt="QR";
+    img.style.maxWidth="140px";
+    img.style.width="140px";
+    img.style.height="140px";
+    img.referrerPolicy="no-referrer";
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}`;
+    qrWrap.appendChild(img);
 
-function next(){
-  if(S.player < S.n-1){ S.player++; updateReveal(); }
-  else {
-    document.getElementById("reveal").style.display="none";
-    document.getElementById("game").style.display="block";
-    renderPlayers();
+    const link=document.createElement("div");
+    link.style.marginTop="8px";
+    link.innerHTML = `<a href="${url}" target="_blank" style="word-break:break-all;font-size:12px">${url}</a>`;
+
+    card.appendChild(qrWrap);
+    card.appendChild(link);
+    grid.appendChild(card);
   }
 }
 
-function normalize(s){
-  return (s||"").trim().toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,""); // enlève accents
+function toggleQr(){
+  const grid=document.getElementById("qrGrid");
+  grid.style.display = (grid.style.display==="none") ? "grid" : "none";
+}
+
+/* --------------------------
+   JEU (host)
+--------------------------- */
+function toVote(){
+  if(!H || H.gameOver) return;
+  H.status="Vote";
+  document.getElementById("phaseTitle").textContent="🗳️ Vote";
+  document.getElementById("phaseText").textContent="Votez à l’oral. Puis tape le joueur éliminé dans la liste.";
+  renderPlayers();
+}
+function newRound(){
+  if(!H || H.gameOver) return;
+  H.round++;
+  H.status="Discussion";
+  document.getElementById("phaseTitle").textContent="🗣️ Discussion";
+  document.getElementById("phaseText").textContent="Chacun donne un indice. Puis votez et éliminez.";
+  renderPlayers();
 }
 
 function eliminatePlayer(i){
-  if(S.gameOver) return;
-  if(!S.alive[i]) return;
+  if(H.gameOver) return;
+  if(!H.alive[i]) return;
 
-  S.alive[i]=false;
+  H.alive[i]=false;
+  const role = H.roles[i].role;
 
-  const role = S.roles[i].role;
-
-  // Si Mr White est éliminé : il tente de deviner le mot des civils
   if(role==="Mr White"){
     const guess = prompt("⬜ Mr White éliminé ! Devine le mot des civils :");
     if(guess != null){
-      if(normalize(guess) === normalize(S.A)){
+      if(normalize(guess) === normalize(H.A)){
         alert("🎉 Mr White a deviné ! Mr White gagne instantanément !");
-        S.gameOver=true;
+        H.gameOver=true;
         revealAll();
         return;
       } else {
         alert("❌ Mauvaise réponse. Mr White est éliminé.");
       }
     } else {
-      alert("Mr White ne tente pas / annule. Il est éliminé.");
+      alert("Mr White annule / ne tente pas. Il est éliminé.");
     }
   }
 
@@ -227,47 +324,31 @@ function eliminatePlayer(i){
 }
 
 function renderPlayers(){
+  if(!H) return;
+  document.getElementById("round").textContent=H.round;
+  document.getElementById("status").textContent=H.status;
+
   const list=document.getElementById("playersList");
   list.innerHTML="";
-  for(let i=0;i<S.n;i++){
+  for(let i=0;i<H.n;i++){
     const div=document.createElement("div");
-    div.className="card" + (S.alive[i] ? "" : " dead");
-    div.innerHTML=`<b>Joueur ${i+1}</b> — ${S.alive[i] ? "✅ vivant" : "☠️ éliminé"}`;
+    div.className="pitem" + (H.alive[i] ? "" : " dead");
+    div.innerHTML = `<b>Joueur ${i+1}</b> — ${H.alive[i] ? "✅ vivant" : "☠️ éliminé"}`;
     div.onclick=()=>{
-      // tap = toggle. Si vivant -> on élimine (et déclenche Mr White si besoin)
-      if(S.alive[i]) eliminatePlayer(i);
-      else { S.alive[i]=true; renderPlayers(); } // réanimer si erreur
+      if(H.alive[i]) eliminatePlayer(i);
+      else { H.alive[i]=true; renderPlayers(); } // réanimer si erreur
     };
     list.appendChild(div);
   }
-  document.getElementById("round").textContent=S.round;
-  document.getElementById("status").textContent=S.status;
-}
-
-function toVote(){
-  if(S.gameOver) return;
-  S.status="Vote";
-  document.getElementById("phaseTitle").textContent="🗳️ Vote";
-  document.getElementById("phaseText").textContent="Votez, puis tape sur le joueur éliminé dans la liste.";
-  renderPlayers();
-}
-
-function newRound(){
-  if(S.gameOver) return;
-  S.round++;
-  S.status="Discussion";
-  document.getElementById("phaseTitle").textContent="🗣️ Discussion";
-  document.getElementById("phaseText").textContent="Chacun donne un indice. Puis votez pour éliminer quelqu’un.";
-  renderPlayers();
 }
 
 function checkWin(){
-  if(S.gameOver) return;
+  if(H.gameOver) return;
 
   let aliveC=0, aliveU=0, aliveW=0;
-  for(let i=0;i<S.n;i++){
-    if(!S.alive[i]) continue;
-    const r=S.roles[i].role;
+  for(let i=0;i<H.n;i++){
+    if(!H.alive[i]) continue;
+    const r=H.roles[i].role;
     if(r==="Civil") aliveC++;
     if(r==="Undercover") aliveU++;
     if(r==="Mr White") aliveW++;
@@ -275,25 +356,26 @@ function checkWin(){
 
   if(aliveU+aliveW===0){
     alert("🎉 Les civils gagnent !");
-    S.gameOver=true;
+    H.gameOver=true;
     revealAll(); return;
   }
   if(aliveU+aliveW>=aliveC){
     alert("💀 Les imposteurs gagnent !");
-    S.gameOver=true;
+    H.gameOver=true;
     revealAll(); return;
   }
 }
 
 function revealAll(){
-  alert("Révélation :\n\n" + S.roles.map((r,i)=>`Joueur ${i+1}: ${r.role} — ${r.word}`).join("\n") +
-        `\n\nMot civils: ${S.A}\nMot undercover: ${S.B}`);
+  if(!H) return;
+  alert(
+    "Révélation :\n\n" +
+    H.roles.map((r,i)=>`Joueur ${i+1}: ${r.role} — ${r.word}`).join("\n") +
+    `\n\nMot civils: ${H.A}\nMot undercover: ${H.B}`
+  );
 }
 
-function restart(){ location.reload(); }
-
-function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
-function clamp(x,min,max){ return Math.max(min, Math.min(max, x)); }
+function restart(){ location.href = location.origin + location.pathname; }
 </script>
 </body>
 </html>
