@@ -1,0 +1,638 @@
+<script>
+  // ======================
+  // CONFIG
+  // ======================
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgJMI2owAPCz1CawUhi6C50a1vqIpY0bo",
+    authDomain: "noel-chez-les-brazo.firebaseapp.com",
+    projectId: "noel-chez-les-brazo",
+    storageBucket: "noel-chez-les-brazo.appspot.com",
+    messagingSenderId: "143321594120",
+    appId: "1:143321594120:web:c19f278a07720bd18cd4bd"
+  };
+
+  // ======================
+  // INIT + DEBUG UTILS
+  // ======================
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+  const $ = (id) => document.getElementById(id);
+
+  const DEBUG = true;
+
+  function toast(msg){
+    if (!DEBUG) return;
+    console.log("[DEBUG]", msg);
+    // petit toast discret en bas
+    let el = document.getElementById("debugToast");
+    if (!el){
+      el = document.createElement("div");
+      el.id = "debugToast";
+      el.style.cssText = `
+        position:fixed;left:12px;right:12px;bottom:12px;
+        background:rgba(0,0,0,.72);color:#fff;padding:10px 12px;
+        border-radius:12px;font:14px system-ui;z-index:99999;
+        border:1px solid rgba(255,255,255,.15);
+      `;
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    clearTimeout(window.__toastT);
+    window.__toastT = setTimeout(()=>{ if(el) el.textContent=""; }, 2500);
+  }
+
+  // capte les erreurs "silencieuses"
+  window.addEventListener("error", (e) => {
+    toast("JS error: " + (e?.message || e));
+    console.error(e);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    toast("Promise error: " + (e?.reason?.message || e?.reason || e));
+    console.error(e);
+  });
+
+  toast("OK: JS chargé ✅");
+
+  // (optionnel mais utile) persistance locale
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(()=> toast("Auth persistence: LOCAL ✅"))
+    .catch((e)=> toast("Auth persistence warn: " + (e?.message || e)));
+
+  // ======================
+  // GAME DATA
+  // ======================
+  const MISSIONS = [
+    "Fais rire quelqu’un sans parler (mime uniquement).",
+    "Trouve 3 objets bleus… sans dire « bleu ».",
+    "Fais deviner un film en 10 secondes, sans utiliser tes mains.",
+    "Raconte une anecdote gênante en 15 secondes (chrono).",
+    "Fais une mini-pub de 7 secondes pour le lieu où tu es.",
+    "Fais une imitation très courte d’un membre de la famille (sans dire son nom).",
+    "Fais dire « d’accord » à quelqu’un en moins de 30 secondes."
+  ];
+
+  const SECRET_MISSIONS = [
+    { text:"Fais dire « ok » à quelqu’un sans qu’il comprenne pourquoi.", points:2 },
+    { text:"Place le mot « remarquable » naturellement dans une phrase.", points:2 },
+    { text:"Fais dire « exactement » à quelqu’un.", points:2 },
+    { text:"Fais dire « j’avoue » à quelqu’un.", points:2 },
+    { text:"Fais dire « pourquoi pas » à quelqu’un.", points:2 },
+    { text:"Fais dire « on est d’accord » à quelqu’un.", points:2 },
+    { text:"Fais dire « c’est pas faux » à quelqu’un.", points:2 },
+    { text:"Fais dire « ah ouais » à quelqu’un.", points:2 },
+    { text:"Obtiens un high-five (même discret).", points:2 },
+    { text:"Obtiens un check de 2 personnes différentes.", points:2 },
+    { text:"Fais rire quelqu’un en une phrase (sans parler de Noël).", points:2 },
+    { text:"Fais approuver une idée absurde (« oui, c’est vrai »).", points:2 },
+    { text:"Fais dire ton prénom par quelqu’un sans te présenter.", points:2 },
+    { text:"Fais une pose photo 3 secondes à quelqu’un.", points:2 },
+    { text:"Fais que quelqu’un te demande « quoi ? ».", points:2 },
+    { text:"Fais dire « je valide » à quelqu’un.", points:2 },
+    { text:"Fais un compliment ultra précis (détail improbable).", points:2 },
+    { text:"Fais le guide touristique du lieu pendant 10 secondes.", points:2 },
+    { text:"Fais choisir entre 2 options absurdes à quelqu’un.", points:2 },
+    { text:"Fais dire « incroyable » à quelqu’un.", points:2 },
+    { text:"Fais deviner un film en 10 sec (sans les mains).", points:2 },
+    { text:"Fais un mini toast… à un objet (très sérieux).", points:2 },
+    { text:"Obtiens « validé » ou « approuvé » de quelqu’un.", points:2 },
+    { text:"Fais rire quelqu’un juste avec un regard (sans parler).", points:2 },
+    { text:"Fais dire « bon… » à quelqu’un.", points:2 },
+    { text:"Obtiens un « oui » à une question inutile mais sérieuse.", points:2 }
+  ];
+
+  const PHOTO_CAPTIONS = [
+    "Fais la mission avec exactement la même expression que cette photo.",
+    "Reproduis la pose 3 secondes (discrètement).",
+    "Imite cette personne en version ‘agent secret’.",
+    "Fais la mission comme si cette personne te jugeait."
+  ];
+
+  const BANNED_WORDS = ["sapin","cadeau","bûche","père noël","noël","guirlande","renne","dinde","cloche"];
+
+  function hashStr(s){
+    let h = 2166136261;
+    for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0);
+  }
+  function pick(arr, seed){ return arr[seed % arr.length]; }
+  function formatTime(sec){
+    const m = String(Math.floor(sec/60)).padStart(2,"0");
+    const s = String(Math.max(0,sec%60)).padStart(2,"0");
+    return `${m}:${s}`;
+  }
+  function randCode(){ return String(Math.floor(1000 + Math.random()*9000)); }
+
+  // ======================
+  // STATE
+  // ======================
+  let uid = null;
+  let room = null;
+  let isHost = false;
+  let roomData = null;
+  let playersCache = [];
+  let photosCache = [];
+  let myScore = 0;
+
+  let unsubRoom=null, unsubPlayers=null, unsubPhotos=null, unsubPending=null, unsubMySecret=null;
+
+  // ======================
+  // AUTH
+  // ======================
+  async function ensureAuth(){
+    try{
+      if (auth.currentUser){
+        toast("Auth déjà OK ✅");
+        return auth.currentUser.uid;
+      }
+      toast("Auth anonyme…");
+      const cred = await auth.signInAnonymously();
+      toast("Auth anonyme OK ✅");
+      return cred.user.uid;
+    } catch(e){
+      toast("ERREUR AUTH ❌ " + (e?.message || e));
+      throw e;
+    }
+  }
+
+  // ======================
+  // UI
+  // ======================
+  function show(which){
+    ["start","lobby","game"].forEach(id => $(id).classList.add("hide"));
+    $(which).classList.remove("hide");
+  }
+
+  // ======================
+  // CORE
+  // ======================
+  async function createRoom(){
+    try{
+      toast("createRoom()…");
+      uid = await ensureAuth();
+      toast("uid=" + uid);
+
+      const code = randCode();
+      const gameName = ($("gameName").value.trim() || "Noël chez les Brazo — Pas Noël");
+      const name = ($("name").value.trim() || "Hôte");
+
+      const ref = db.collection("rooms").doc(code);
+
+      await ref.set({
+        code,
+        gameName,
+        hostUid: uid,
+        round: 1,
+        phase: "lobby",
+        roundStartAt: null,
+        durationSec: 180,
+        secretTurnIndex: 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      toast("Room créée ✅ code=" + code);
+
+      await ref.collection("players").doc(uid).set({
+        uid, name, score: 0, joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      toast("Player ajouté ✅");
+      await enterRoom(code);
+
+    } catch(e){
+      toast("ERREUR createRoom ❌ " + (e?.message || e));
+      console.error(e);
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  async function joinRoom(){
+    try{
+      toast("joinRoom()…");
+      uid = await ensureAuth();
+
+      const code = ($("code").value.trim() || "").replace(/\D/g,"").slice(0,4);
+      if (code.length !== 4) return alert("Code à 4 chiffres 🙂");
+
+      const name = ($("name").value.trim() || "Joueur");
+      const ref = db.collection("rooms").doc(code);
+
+      const snap = await ref.get();
+      if (!snap.exists) return alert("Partie introuvable.");
+
+      await ref.collection("players").doc(uid).set({
+        uid, name, score: 0, joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge:true });
+
+      toast("Join OK ✅");
+      await enterRoom(code);
+
+    } catch(e){
+      toast("ERREUR joinRoom ❌ " + (e?.message || e));
+      console.error(e);
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  function attachListeners(ref){
+    if (unsubRoom) unsubRoom();
+    if (unsubPlayers) unsubPlayers();
+    if (unsubPhotos) unsubPhotos();
+    if (unsubPending) unsubPending();
+    if (unsubMySecret) unsubMySecret();
+
+    unsubRoom = ref.onSnapshot((s) => {
+      roomData = s.data();
+      if (!roomData) return;
+
+      $("title").textContent = "🎭 " + (roomData.gameName || "Noël chez les Brazo");
+      $("roomCode").textContent = room;
+      $("gCode").textContent = room;
+      $("round").textContent = String(roomData.round || 1);
+
+      isHost = (roomData.hostUid === uid);
+      $("startRound").style.display = isHost ? "block" : "none";
+      $("next").style.display = isHost ? "block" : "none";
+      $("sendSecret").style.display = isHost ? "block" : "none";
+      $("hostHint").textContent = isHost
+        ? "Tu es l’hôte : tu lances les manches et tu envoies/valides les missions secrètes."
+        : "Attends que l’hôte lance la manche. Une mission secrète peut tomber sur toi 😄";
+
+      if (roomData.phase === "running"){
+        show("game");
+        renderMissionAndPhoto();
+        syncTimer(roomData.roundStartAt, roomData.durationSec || 180);
+      } else {
+        show("lobby");
+      }
+    }, (e)=>{
+      toast("Room listener err ❌ " + (e?.message || e));
+      console.error(e);
+    });
+
+    unsubPlayers = ref.collection("players").orderBy("joinedAt","asc").onSnapshot((qs) => {
+      playersCache = [];
+      const ul = $("players");
+      ul.innerHTML = "";
+      qs.forEach(doc => {
+        const p = doc.data();
+        playersCache.push(p);
+        const li = document.createElement("li");
+        li.textContent = `${p.name} — ${p.score||0} pts`;
+        ul.appendChild(li);
+        if (p.uid === uid) myScore = p.score || 0;
+      });
+      $("scoreLine").textContent = `Ton score : ${myScore} pt(s).`;
+    }, (e)=>{
+      toast("Players listener err ❌ " + (e?.message || e));
+      console.error(e);
+    });
+
+    unsubPhotos = ref.collection("photos").orderBy("createdAt","asc").onSnapshot((qs) => {
+      photosCache = [];
+      qs.forEach(d => photosCache.push(d.data().url));
+      $("photoCount").textContent = photosCache.length ? `✅ ${photosCache.length} photo(s) partagée(s).` : "Aucune photo partagée.";
+    }, (e)=>{
+      toast("Photos listener err ❌ " + (e?.message || e));
+      console.error(e);
+    });
+
+    unsubPending = ref.collection("secrets").where("status","==","pending").orderBy("createdAt","asc")
+      .onSnapshot((qs) => {
+        if (!isHost){ $("hostPanel").classList.add("hide"); return; }
+        $("hostPanel").classList.remove("hide");
+        const list = [];
+        qs.forEach(d => list.push({ id:d.id, ...d.data() }));
+        renderPending(list);
+      }, (e)=>{
+        toast("Pending listener err ❌ " + (e?.message || e));
+        console.error(e);
+      });
+
+    unsubMySecret = ref.collection("secrets")
+      .where("assignedToUid","==", uid)
+      .orderBy("createdAt","desc")
+      .limit(1)
+      .onSnapshot((qs) => {
+        if (qs.empty) return;
+        const d = qs.docs[0];
+        const s = d.data();
+        if (!s) return;
+
+        if (s.status === "assigned"){
+          showSecret(`🕵️ Mission secrète : ${s.text}\n(+${s.points} points)\n\n⚠️ Ne la montre à personne.`, "📩 Reçue.");
+          $("secretClaim").onclick = async () => {
+            await ref.collection("secrets").doc(d.id).set({
+              status:"pending",
+              claimAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, {merge:true});
+            $("secretStatus").textContent = "🟠 En attente de validation de l’hôte…";
+          };
+        } else if (s.status === "pending"){
+          showSecret(`🕵️ Mission secrète (en attente)\n${s.text}\n(+${s.points})`, "🟠 En attente…");
+        } else if (s.status === "approved"){
+          showSecret(`✅ Validé !\n+${s.points} points.`, "🎉 Gagné !");
+          setTimeout(()=>{ $("secretBox").classList.add("hide"); }, 1800);
+        } else if (s.status === "rejected"){
+          showSecret(`❌ Refusé…\nTu peux retenter plus discrètement 😅`, "Retente !");
+        }
+      }, (e)=>{
+        toast("MySecret listener err ❌ " + (e?.message || e));
+        console.error(e);
+      });
+  }
+
+  async function enterRoom(code){
+    try{
+      room = code;
+      const ref = db.collection("rooms").doc(room);
+
+      // URL share
+      const url = new URL(window.location.href);
+      url.searchParams.set("code", room);
+      window.history.replaceState({}, "", url.toString());
+
+      const snap = await ref.get();
+      if (!snap.exists) return alert("Partie introuvable.");
+
+      isHost = (snap.data().hostUid === uid);
+      $("me").textContent = ($("name").value.trim() || "Joueur");
+
+      attachListeners(ref);
+      show("lobby");
+      toast("Lobby ✅ (room=" + room + ")");
+
+    } catch(e){
+      toast("ERREUR enterRoom ❌ " + (e?.message || e));
+      console.error(e);
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  function renderMissionAndPhoto(){
+    const r = roomData?.round || 1;
+    const seedM = hashStr(`${room}|${uid}|R${r}|M`);
+    const mission = pick(MISSIONS, seedM);
+    const banned = pick(BANNED_WORDS, hashStr(`${room}|${uid}|R${r}|B`));
+
+    $("mission").textContent = `🎯 ${mission}\n🚫 Mot interdit : “${banned}”`;
+
+    const showP = photosCache.length && ((hashStr(`${room}|R${r}|P`) % 100) < 35);
+    if (showP){
+      const s = hashStr(`${room}|R${r}|IMG`);
+      $("photo").src = photosCache[s % photosCache.length];
+      $("caption").textContent = "🎬 Défi photo : " + pick(PHOTO_CAPTIONS, s);
+      $("photoBox").classList.remove("hide");
+    } else {
+      $("photoBox").classList.add("hide");
+    }
+
+    $("scoreLine").textContent = `Ton score : ${myScore} pt(s).`;
+  }
+
+  let timerInt = null;
+  function syncTimer(roundStartAt, durationSec){
+    if (timerInt) clearInterval(timerInt);
+    if (!roundStartAt) return;
+    const startMs = roundStartAt.toMillis();
+    timerInt = setInterval(() => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - startMs)/1000);
+      const left = durationSec - elapsed;
+      $("timer").textContent = formatTime(left);
+      if (left <= 0){
+        $("timer").textContent = "00:00";
+        clearInterval(timerInt);
+        timerInt = null;
+      }
+    }, 250);
+  }
+
+  async function startRound(){
+    try{
+      if (!isHost) return alert("Seul l’hôte peut lancer.");
+      const ref = db.collection("rooms").doc(room);
+      await ref.set({
+        phase: "running",
+        roundStartAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+      toast("Manche lancée ✅");
+    } catch(e){
+      toast("startRound err ❌ " + (e?.message || e));
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  async function nextRound(){
+    try{
+      if (!isHost) return alert("Seul l’hôte peut changer de manche.");
+      const ref = db.collection("rooms").doc(room);
+      const snap = await ref.get();
+      const r = snap.data();
+      const next = (r.round || 1) + 1;
+      if (next > 3){
+        await ref.set({ phase:"ended", updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+        alert("Fin de partie 🎉");
+        return;
+      }
+      await ref.set({
+        round: next,
+        phase: "running",
+        roundStartAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+      toast("Next round ✅");
+    } catch(e){
+      toast("nextRound err ❌ " + (e?.message || e));
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  async function updateMyScore(delta){
+    try{
+      myScore += delta;
+      $("scoreLine").textContent = `Ton score : ${myScore} pt(s).`;
+      await db.collection("rooms").doc(room).collection("players").doc(uid).set({ score: myScore }, {merge:true});
+    } catch(e){
+      toast("score err ❌ " + (e?.message || e));
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  async function uploadPhotos(files){
+    try{
+      if (!room) return;
+      const ref = db.collection("rooms").doc(room);
+      const list = Array.from(files || []).slice(0, 25);
+
+      toast("Upload " + list.length + " photo(s)…");
+      for (const f of list){
+        const path = `rooms/${room}/photos/${Date.now()}_${Math.random().toString(16).slice(2)}_${(f.name||"photo").replace(/[^\w.\-]/g,"_")}`;
+        const snap = await storage.ref(path).put(f);
+        const url = await snap.ref.getDownloadURL();
+        await ref.collection("photos").add({
+          url,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      toast("Upload OK ✅");
+    } catch(e){
+      toast("upload err ❌ " + (e?.message || e));
+      alert("Erreur Storage : " + (e?.message || e));
+    }
+  }
+
+  function showSecret(text, status){
+    $("secretText").textContent = text;
+    $("secretStatus").textContent = status || "";
+    $("secretBox").classList.remove("hide");
+    if (navigator.vibrate) navigator.vibrate([80,50,80]);
+  }
+  $("secretHide").onclick = () => $("secretBox").classList.add("hide");
+
+  async function sendSecret(){
+    try{
+      if (!isHost) return alert("Seul l’hôte peut envoyer.");
+      if (!playersCache.length) return alert("Pas de joueurs.");
+      const ref = db.collection("rooms").doc(room);
+
+      const snap = await ref.get();
+      const r = snap.data();
+      const turn = (r.secretTurnIndex || 0) % playersCache.length;
+      const target = playersCache[turn];
+      const nextTurn = (turn + 1) % playersCache.length;
+
+      const m = SECRET_MISSIONS[Math.floor(Math.random() * SECRET_MISSIONS.length)];
+      await ref.collection("secrets").add({
+        assignedToUid: target.uid,
+        assignedToName: target.name,
+        text: m.text,
+        points: m.points,
+        status: "assigned",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      await ref.set({
+        secretTurnIndex: nextTurn,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+
+      alert(`Mission secrète envoyée à ${target.name} 🕵️`);
+    } catch(e){
+      toast("sendSecret err ❌ " + (e?.message || e));
+      alert("Erreur Firebase : " + (e?.message || e));
+    }
+  }
+
+  function renderPending(list){
+    const wrap = $("pendingList");
+    if (!isHost){ $("hostPanel").classList.add("hide"); return; }
+    $("hostPanel").classList.remove("hide");
+
+    if (!list || !list.length){
+      wrap.innerHTML = `<p class="small">Aucune validation en attente.</p>`;
+      return;
+    }
+
+    wrap.innerHTML = "";
+    list.forEach(item => {
+      const div = document.createElement("div");
+      div.style.padding = "10px";
+      div.style.border = "1px solid rgba(255,255,255,.08)";
+      div.style.borderRadius = "12px";
+      div.style.marginBottom = "8px";
+      div.innerHTML = `
+        <div style="font-weight:700">${item.assignedToName} demande validation (+${item.points})</div>
+        <div class="small" style="margin-top:6px;">🕵️ ${item.text}</div>
+        <div class="row" style="margin-top:10px;">
+          <button class="good" data-approve="${item.id}">✅ Valider</button>
+          <button class="bad" data-reject="${item.id}">❌ Refuser</button>
+        </div>
+      `;
+      wrap.appendChild(div);
+    });
+
+    wrap.querySelectorAll("[data-approve]").forEach(btn => {
+      btn.onclick = async () => {
+        try{
+          const id = btn.dataset.approve;
+          const sref = db.collection("rooms").doc(room).collection("secrets").doc(id);
+          const ss = await sref.get();
+          const secret = ss.data();
+          if (!secret) return;
+
+          const pref = db.collection("rooms").doc(room).collection("players").doc(secret.assignedToUid);
+          const ps = await pref.get();
+          const p = ps.data();
+          const newScore = (p?.score || 0) + (secret.points || 2);
+          await pref.set({ score: newScore }, {merge:true});
+
+          await sref.set({ status:"approved", decidedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+          toast("Secret approved ✅");
+        } catch(e){
+          toast("approve err ❌ " + (e?.message || e));
+          alert("Erreur Firebase : " + (e?.message || e));
+        }
+      };
+    });
+
+    wrap.querySelectorAll("[data-reject]").forEach(btn => {
+      btn.onclick = async () => {
+        try{
+          const id = btn.dataset.reject;
+          const sref = db.collection("rooms").doc(room).collection("secrets").doc(id);
+          await sref.set({ status:"rejected", decidedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+          toast("Secret rejected ✅");
+        } catch(e){
+          toast("reject err ❌ " + (e?.message || e));
+          alert("Erreur Firebase : " + (e?.message || e));
+        }
+      };
+    });
+  }
+
+  // ======================
+  // UI EVENTS
+  // ======================
+  $("create").onclick = () => { toast("CLICK: créer"); createRoom(); };
+  $("joinBtn").onclick = () => $("code").focus();
+  $("enter").onclick  = () => { toast("CLICK: entrer"); joinRoom(); };
+
+  $("startRound").onclick = startRound;
+  $("next").onclick = nextRound;
+  $("ok").onclick = () => updateMyScore(1);
+  $("ko").onclick = () => updateMyScore(0);
+  $("back").onclick = () => show("lobby");
+  $("goGame").onclick = () => show("game");
+  $("photos").addEventListener("change", (e) => uploadPhotos(e.target.files));
+  $("sendSecret").onclick = sendSecret;
+
+  $("share").onclick = async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("code", room);
+    const txt = `🎭 ${$("title").textContent}\nCode: ${room}\n👉 ${url.toString()}`;
+    try{
+      if (navigator.share) await navigator.share({title:"Pas Noël", text:txt, url:url.toString()});
+      else { await navigator.clipboard.writeText(txt); alert("Lien copié ✅"); }
+    } catch(e){
+      try{ await navigator.clipboard.writeText(txt); alert("Lien copié ✅"); }
+      catch(_){ prompt("Copie :", txt); }
+    }
+  };
+
+  // Auto prefill code from URL
+  (async () => {
+    try{
+      uid = await ensureAuth();
+      const pre = new URL(window.location.href).searchParams.get("code");
+      if (pre) $("code").value = pre.slice(0,4);
+      toast("Ready ✅");
+    } catch(e){
+      // si auth KO, tu le verras ici
+      console.error(e);
+    }
+  })();
+</script>
