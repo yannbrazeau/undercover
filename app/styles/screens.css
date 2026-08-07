@@ -1,13 +1,12 @@
-/* screens.css — spécificités des écrans (barre de scénario, listes, saisie).
-   S'étoffera écran par écran. */
+/* screens.css — spécificités des écrans. S'étoffe écran par écran. */
 
 /* Barre de scénario permanente (écran Lots) */
 .sticky {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--green2);
-  color: var(--white);
+  background: var(--dark);
+  color: var(--surface);
   padding: 11px 16px;
   display: flex;
   justify-content: space-between;
@@ -15,11 +14,11 @@
 }
 .sticky .l {
   font-size: var(--fs-secondary);
-  color: var(--soft);
+  color: var(--faint);
 }
 .sticky .r {
-  font-family: var(--font-title);
-  font-size: 21px;
+  font-size: 20px;
+  font-weight: var(--w-bold);
 }
 
 /* Sélecteur de vue (Liste / Chronologie) */
@@ -32,14 +31,15 @@
   font-size: var(--fs-secondary);
   padding: 7px 14px;
   border-radius: var(--radius-lg);
-  background: var(--white);
+  background: var(--surface);
   border: 1px solid var(--line);
   color: var(--muted);
 }
 .tabs span.on {
-  background: var(--green2);
-  border-color: var(--green2);
-  color: var(--white);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: var(--w-bold);
 }
 
 /* Ligne d'un lot dans une liste */
@@ -66,9 +66,9 @@
 
 /* Barre de progression */
 .bar {
-  height: 10px;
-  border-radius: 5px;
-  background: var(--soft);
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
   overflow: hidden;
   display: flex;
   margin: 12px 0 10px;
@@ -76,20 +76,23 @@
 .bar i {
   display: block;
   height: 100%;
+  background: var(--accent);
 }
 
 /* Écran Ajouter : dépôt de fichier + chips de choix */
 .drop {
-  border: 1px dashed var(--field-border);
+  border: 1px dashed var(--line);
   border-radius: var(--radius);
-  background: var(--white);
+  background: var(--surface);
   text-align: center;
   padding: 22px 10px;
   margin-bottom: 14px;
 }
 .drop b {
   display: block;
-  font-size: 17px;
+  font-size: var(--fs-body);
+  font-weight: var(--w-bold);
+  color: var(--accent);
   margin-bottom: 3px;
 }
 .drop span {
@@ -106,15 +109,16 @@
   text-align: center;
   font-size: var(--fs-secondary);
   padding: 10px 0;
-  border-radius: 9px;
-  border: 1px solid var(--field-border);
-  background: var(--white);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--muted);
 }
 .choice span.on {
-  background: var(--green2);
-  border-color: var(--green2);
-  color: var(--white);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: var(--w-bold);
 }
 
 /* Cases à cocher (réserves, assurances) */
@@ -132,15 +136,15 @@
 .box {
   width: 17px;
   height: 17px;
-  border: 1px solid var(--field-border);
+  border: 1px solid var(--faint);
   border-radius: 4px;
   flex: 0 0 auto;
   margin-top: 2px;
-  background: var(--white);
+  background: var(--surface);
 }
 .box.on {
-  background: var(--green2);
-  border-color: var(--green2);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Liste des variables de configuration (Réglages) */
@@ -157,5 +161,5 @@
 }
 .kv code {
   color: var(--muted);
-  font-family: var(--font-body);
+  font-family: var(--font);
 }

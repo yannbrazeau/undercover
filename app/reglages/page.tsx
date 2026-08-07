@@ -37,7 +37,7 @@ export default function ReglagesPage() {
               <span className="v good">Configuré</span>
             </div>
           ) : (
-            <div className="notice">
+            <div className="info">
               L&apos;accès Google n&apos;est pas encore configuré. Les identifiants se
               renseignent dans l&apos;hébergement, une seule fois.
             </div>

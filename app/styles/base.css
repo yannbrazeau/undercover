@@ -13,13 +13,23 @@ body {
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-body);
+  font-family: var(--font);
   font-size: var(--fs-body);
+  font-weight: var(--w-reg);
   line-height: var(--lh);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Coque : une colonne centrée, barre de navigation fixée en bas. */
+/* Les chiffres de montants s'alignent en colonne d'une ligne à l'autre. */
+.amount,
+.num,
+.row .v,
+.sticky .r,
+.kv span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Coque : colonne centrée, navigation fixée en bas. */
 .app {
   max-width: var(--maxw);
   margin: 0 auto;
@@ -32,38 +42,37 @@ body {
   padding: var(--pad);
 }
 
-/* En-tête d'écran — bandeau vert, sur-intitulé laiton, titre Georgia. */
+/* En-tête d'écran — bandeau anthracite, sur-intitulé discret, titre sobre. */
 .top {
-  background: var(--green);
-  color: var(--white);
+  background: var(--dark);
+  color: var(--surface);
   padding: 18px 16px 16px;
 }
 .top .eyebrow {
-  color: var(--gold);
+  color: var(--faint);
   font-size: var(--fs-badge);
-  letter-spacing: 1.5px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   margin: 0 0 4px;
 }
 .top h1 {
-  font-family: var(--font-title);
-  font-weight: 400;
   font-size: var(--fs-screen);
+  font-weight: var(--w-bold);
   margin: 0;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 
-/* Titres */
+/* Titres de section */
 h2 {
-  font-family: var(--font-title);
-  font-weight: 400;
   font-size: var(--fs-section);
+  font-weight: var(--w-bold);
   margin: 0 0 10px;
 }
 
 /* Cartes */
 .card {
-  background: var(--white);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -71,17 +80,15 @@ h2 {
   box-shadow: var(--shadow);
 }
 .card h4 {
-  font-family: var(--font-title);
-  font-weight: 400;
-  font-size: 18px;
+  font-size: var(--fs-section);
+  font-weight: var(--w-bold);
   margin: 0 0 10px;
 }
 
 /* Montant principal */
 .amount {
-  font-family: var(--font-title);
-  font-weight: 400;
   font-size: var(--fs-amount);
+  font-weight: var(--w-bold);
   margin: 2px 0;
 }
 .sub {
@@ -106,15 +113,15 @@ h2 {
   color: var(--muted);
 }
 .row .v {
-  font-weight: bold;
+  font-weight: var(--w-bold);
 }
 
 /* Couleurs sémantiques de texte */
 .good {
-  color: var(--green2);
+  color: var(--ok);
 }
 .bad {
-  color: var(--red);
+  color: var(--danger);
 }
 
 /* Boutons — annoncent une action (verbe), jamais un état. */
@@ -122,28 +129,30 @@ h2 {
   display: block;
   width: 100%;
   text-align: center;
-  background: var(--green2);
-  color: var(--white);
+  background: var(--accent);
+  color: var(--surface);
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 13px;
   font-size: var(--fs-body);
+  font-weight: var(--w-bold);
   font-family: inherit;
   margin-top: 4px;
   cursor: pointer;
 }
-.btn:active {
-  transform: translateY(1px);
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .btn.sec {
-  background: var(--white);
-  color: var(--green2);
-  border: 1px solid var(--btn-sec-border);
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--line);
 }
 .btn.danger {
-  background: var(--white);
-  color: var(--red);
-  border: 1px solid var(--danger-line);
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid var(--line);
   font-size: var(--fs-secondary);
   padding: 10px;
 }
@@ -157,9 +166,9 @@ label {
 }
 .field {
   width: 100%;
-  background: var(--white);
-  border: 1px solid var(--field-border);
-  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   padding: 12px;
   font-size: var(--fs-body);
   font-family: inherit;
@@ -167,65 +176,69 @@ label {
   margin-bottom: 14px;
 }
 .field:focus {
-  outline: 2px solid var(--green2);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-/* Pastilles et badges — 12 px minimum, réservés aux états courts. */
+/* Pastilles et badges */
 .pill {
   display: inline-block;
-  background: var(--soft);
-  color: var(--pill-ink);
+  background: var(--line);
+  color: var(--muted);
   border-radius: var(--radius-pill);
   padding: 3px 10px;
   font-size: var(--fs-badge);
+  font-weight: 500;
 }
 .pill.warn {
-  background: var(--warn-bg);
-  color: var(--warn-ink);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 .pill.danger {
-  background: var(--danger-bg);
-  color: var(--danger-ink);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
-/* Blocs de message — une phrase, dire ce qui se passe puis quoi faire. */
+/* Blocs de message — soft, sans bordure, une phrase. */
+.info,
+.warn,
 .alert,
-.notice,
 .ok {
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 12px;
   font-size: var(--fs-secondary);
 }
+.info {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
 .alert {
-  background: var(--danger-bg);
-  border: 1px solid var(--danger-line);
-  color: var(--danger-ink);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .alert b {
   display: block;
+  font-weight: var(--w-bold);
   margin-bottom: 4px;
 }
-.notice {
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-line);
-  color: var(--warn-ink);
-}
 .ok {
-  background: var(--soft);
-  border: 1px solid var(--ok-line);
-  color: var(--ok-ink);
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 
-/* Navigation — quatre entrées, libellés toujours visibles, identiques partout. */
+/* Navigation — quatre entrées, libellés toujours visibles. */
 .nav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 20;
-  background: var(--white);
+  background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -242,6 +255,7 @@ label {
   gap: 3px;
   padding: 8px 0 7px;
   font-size: var(--fs-badge);
+  font-weight: 500;
   color: var(--muted);
   text-decoration: none;
 }
@@ -251,5 +265,5 @@ label {
   stroke: currentColor;
 }
 .nav a.on {
-  color: var(--green2);
+  color: var(--accent);
 }

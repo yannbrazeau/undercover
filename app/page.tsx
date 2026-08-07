@@ -10,7 +10,7 @@ export default function BudgetPage() {
       <ScreenHeader eyebrow="Chantier Bouchemaine" title="Budget" />
       <div className="screen-body">
         {!configured && (
-          <div className="notice">
+          <div className="info">
             L&apos;accès Google n&apos;est pas encore configuré. Les chiffres du chantier
             s&apos;afficheront une fois la connexion établie, dans Réglages.
           </div>
