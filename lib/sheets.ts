@@ -169,6 +169,7 @@ export async function getProjet(): Promise<ProjetParams> {
     budgetContractuel: parseNum(map.get("BUDGET_CONTRACTUEL_TTC")),
     dateOuvertureChantier: map.get("DATE_OUVERTURE_CHANTIER") ?? "",
     tauxRetenueGarantie: Number.isFinite(taux) ? taux : 0,
+    doSouscrite: norm(map.get("DO_SOUSCRITE")) === "oui",
   };
 }
 

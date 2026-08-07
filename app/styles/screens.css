@@ -78,6 +78,40 @@
   height: 100%;
   background: var(--accent);
 }
+.bar i.light {
+  opacity: 0.4;
+}
+.bar.over i {
+  background: var(--danger);
+}
+
+/* Légende chiffrée sous une barre */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.legend span {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+.legend .dot.light {
+  opacity: 0.4;
+}
+.legend .dot.track {
+  background: var(--line);
+}
 
 /* Écran Ajouter : dépôt de fichier + chips de choix */
 .drop {
