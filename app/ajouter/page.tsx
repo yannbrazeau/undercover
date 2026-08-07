@@ -8,6 +8,50 @@ import { euros, todayFr } from "@/lib/format";
 type LotOption = { uuid: string; nom: string };
 const NATURES = ["Acompte", "Situation d'avancement", "Solde"];
 
+const CHUNK_SIZE = 3 * 1024 * 1024; // 3 Mo, multiple de 256 Kio (exigé par Google)
+const MAX_FILE_BYTES = 50 * 1024 * 1024; // garde-fou, pas une vraie limite technique
+
+/**
+ * Envoie le fichier par morceaux via notre propre serveur (jamais directement à
+ * Google depuis le navigateur, qui refuse cet envoi cross-site). Chaque morceau
+ * passe sous la limite de l'hébergeur, donc la taille totale n'est plus un problème.
+ */
+async function uploadViaChunks(
+  sessionUri: string,
+  file: File,
+): Promise<{ id?: string; webViewLink?: string } | null> {
+  const total = file.size;
+  let start = 0;
+
+  while (start < total) {
+    const end = Math.min(start + CHUNK_SIZE, total);
+    const chunk = file.slice(start, end);
+
+    const res = await fetch("/api/upload-chunk", {
+      method: "PUT",
+      headers: {
+        "x-session-uri": sessionUri,
+        "x-content-range": `bytes ${start}-${end - 1}/${total}`,
+      },
+      body: chunk,
+    });
+
+    if (res.status === 308) {
+      const range = res.headers.get("range"); // "bytes=0-3145727"
+      const m = range ? /bytes=\d+-(\d+)/.exec(range) : null;
+      start = m ? parseInt(m[1], 10) + 1 : end;
+      continue;
+    }
+    if (res.ok) {
+      return res.json().catch(() => null);
+    }
+
+    const errJson = await res.json().catch(() => ({}) as Record<string, unknown>);
+    throw new Error(String(errJson.error) || `L'envoi du fichier a échoué (${res.status}).`);
+  }
+  return null;
+}
+
 function num(s: string): number {
   const n = parseFloat(String(s).replace(",", "."));
   return Number.isFinite(n) ? n : 0;
@@ -74,7 +118,9 @@ export default function AjouterPage() {
     try {
       let driveUrl = "";
       if (file) {
-        // 1) Le serveur ouvre une session d'envoi Drive (aucun octet ne passe par lui).
+        if (file.size > MAX_FILE_BYTES) throw new Error("Fichier trop volumineux.");
+
+        // 1) Le serveur ouvre une session d'envoi Drive.
         const init = await fetch("/api/upload-init", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -87,17 +133,12 @@ export default function AjouterPage() {
         const initJson = await readJson(init);
         if (!init.ok) throw new Error(String(initJson.error) || "L'envoi du fichier n'a pas pu démarrer.");
 
-        // 2) Le navigateur envoie le fichier directement à Google, sans limite de taille.
-        const put = await fetch(String(initJson.sessionUri), {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!put.ok) throw new Error("L'envoi du fichier vers le Drive a échoué.");
-        const putJson = await readJson(put);
+        // 2) Le fichier part par morceaux, relayés par notre serveur — aucune
+        //    limite de taille, et aucun appel direct du navigateur vers Google.
+        const result = await uploadViaChunks(String(initJson.sessionUri), file);
         driveUrl =
-          (putJson.webViewLink as string) ||
-          (putJson.id ? `https://drive.google.com/file/d/${putJson.id}/view` : "");
+          result?.webViewLink ||
+          (result?.id ? `https://drive.google.com/file/d/${result.id}/view` : "");
       }
 
       const res = await fetch("/api/factures", {
