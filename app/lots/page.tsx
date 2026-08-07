@@ -1,217 +1,179 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
 
-type DevisItem = {
-  id: string;
+type LotItem = {
   lotUuid: string;
-  lot: string;
+  nom: string;
+  perimetre: string;
+  budget: number;
+  engage: number;
+  facture: number;
+  paye: number;
+  ecartBudget: number;
   entreprise: string;
-  ttc: number;
-  statut: string;
-  decennale: string;
-  entreprisePrevenue: boolean;
+  nbDevis: number;
+  etat: "aucun devis" | "à choisir" | "en cours" | "terminé";
+  debutPrevu: string;
+  finPrevue: string;
+  avancementPct: number;
 };
 
-function normStatut(s: string) {
-  return s
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+function parseFr(s: string): Date | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s ?? "").trim());
+  if (!m) return null;
+  return new Date(Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10)));
 }
-
-type Confirmation = { devisId: string; entreprise: string; etatDecennale: string } | null;
 
 export default function LotsPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [devis, setDevis] = useState<DevisItem[]>([]);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<Confirmation>(null);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [lots, setLots] = useState<LotItem[]>([]);
+  const [scenario, setScenario] = useState(0);
+  const [budgetContractuel, setBudgetContractuel] = useState(0);
+  const [vue, setVue] = useState<"liste" | "chronologie">("liste");
+  const [recherche, setRecherche] = useState("");
 
-  const charger = useCallback(() => {
-    fetch("/api/devis", { cache: "no-store" })
+  useEffect(() => {
+    fetch("/api/lots/liste", { cache: "no-store" })
       .then((r) => r.json().then((d) => ({ status: r.status, d })))
       .then(({ status, d }) => {
         setConfigured(status === 200);
-        if (status === 200) setDevis(d.devis ?? []);
+        if (status === 200) {
+          setLots(d.lots ?? []);
+          setScenario(d.scenario ?? 0);
+          setBudgetContractuel(d.budgetContractuel ?? 0);
+        }
       })
       .catch(() => setConfigured(false));
   }, []);
 
-  useEffect(() => {
-    charger();
-  }, [charger]);
+  const ecartScenario = scenario - budgetContractuel;
 
-  const parLot = useMemo(() => {
-    const map = new Map<string, { lot: string; devis: DevisItem[] }>();
-    for (const d of devis) {
-      if (!map.has(d.lotUuid)) map.set(d.lotUuid, { lot: d.lot, devis: [] });
-      map.get(d.lotUuid)!.devis.push(d);
-    }
-    return Array.from(map.values()).sort((a, b) => a.lot.localeCompare(b.lot));
-  }, [devis]);
+  const lotsFiltres = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
+    if (!q) return lots;
+    return lots.filter((l) => l.nom.toLowerCase().includes(q));
+  }, [lots, recherche]);
 
-  const signer = useCallback(
-    async (devisId: string, confirmerMalgreDecennale = false) => {
-      setError("");
-      setMessage("");
-      setBusyId(devisId);
-      try {
-        const res = await fetch("/api/devis/signer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devisId, confirmerMalgreDecennale }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "La signature a échoué.");
+  const aujourdHui = useMemo(() => new Date(), []);
 
-        if (json.requiresConfirmation) {
-          setConfirmation({ devisId, entreprise: json.entreprise, etatDecennale: json.etatDecennale });
-          return;
-        }
-
-        setConfirmation(null);
-        const nb = (json.ecartes ?? []).length;
-        setMessage(
-          `Devis ${devisId} signé.` +
-            (nb > 0 ? ` ${nb} entreprise${nb > 1 ? "s" : ""} non retenue${nb > 1 ? "s" : ""} à prévenir.` : ""),
-        );
-        charger();
-      } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [charger],
-  );
-
-  const prevenir = useCallback(
-    async (devisId: string) => {
-      try {
-        await fetch("/api/devis/prevenir", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devisId }),
-        });
-        charger();
-      } catch {
-        setError("Impossible de marquer l'entreprise comme prévenue.");
-      }
-    },
-    [charger],
-  );
+  const chronologie = useMemo(() => {
+    const avecDate = lotsFiltres
+      .filter((l) => parseFr(l.debutPrevu))
+      .sort((a, b) => (parseFr(a.debutPrevu)!.getTime() - parseFr(b.debutPrevu)!.getTime()));
+    const sansDate = lotsFiltres.filter((l) => !parseFr(l.debutPrevu));
+    return { avecDate, sansDate };
+  }, [lotsFiltres]);
 
   return (
     <>
-      <ScreenHeader eyebrow="24 lots" title="Lots" />
+      <ScreenHeader eyebrow={`${lots.length} lots`} title="Lots" />
       <div className="sticky">
         <span className="l">Scénario · écart au budget</span>
-        <span className="r">—</span>
+        <span className="r">
+          {configured ? (
+            <>
+              {euros(scenario)}{" "}
+              <span style={{ color: ecartScenario > 0 ? "var(--danger)" : "var(--ok)" }}>
+                {ecartScenario > 0 ? "+" : ""}
+                {euros(ecartScenario)}
+              </span>
+            </>
+          ) : (
+            "—"
+          )}
+        </span>
       </div>
       <div className="screen-body">
         <div className="tabs">
-          <span className="on">Liste</span>
-          <span>Chronologie</span>
+          <span className={vue === "liste" ? "on" : undefined} onClick={() => setVue("liste")}>
+            Liste
+          </span>
+          <span className={vue === "chronologie" ? "on" : undefined} onClick={() => setVue("chronologie")}>
+            Chronologie
+          </span>
         </div>
-
-        <div className="info">
-          Vue provisoire — pour signer un devis et tester les garde-fous. La liste, la
-          recherche et la fiche complète du lot arrivent à l&apos;étape suivante.
-        </div>
-
-        {message && <div className="ok">{message}</div>}
-        {error && (
-          <div className="alert">
-            <b>Ça n&apos;a pas abouti</b>
-            <span>{error}</span>
-          </div>
-        )}
 
         {configured === false && (
-          <div className="info">La liste des devis demande la connexion Google.</div>
+          <div className="info">La liste des lots demande la connexion Google.</div>
         )}
 
-        {parLot.map(({ lot, devis: devisDuLot }) => {
-          const aPrevenir = devisDuLot.filter(
-            (d) => normStatut(d.statut) === "ecarte" && !d.entreprisePrevenue,
-          );
-          return (
-            <div className="card" key={devisDuLot[0]?.lotUuid || lot}>
-              <h4>{lot}</h4>
-              {devisDuLot.map((d) => {
-                const estEligible = ["recu", "a corriger", "retenu"].includes(normStatut(d.statut));
-                const estEnConfirmation = confirmation?.devisId === d.id;
-                return (
-                  <div className="item" key={d.id}>
-                    <div className="t">
-                      <span>
-                        {d.entreprise} <span className="sub">— {d.id}</span>
-                      </span>
-                      <span className="num">{euros(d.ttc)}</span>
-                    </div>
-                    <div className="m">
-                      <span className="pill">{d.statut}</span>
-                      {estEligible && d.decennale !== "valide" && (
-                        <span className="pill warn" style={{ marginLeft: 6 }}>
-                          décennale {d.decennale}
-                        </span>
-                      )}
-                    </div>
+        {vue === "liste" && (
+          <>
+            <input
+              className="field"
+              placeholder="Rechercher un lot"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+            />
+            {lotsFiltres.map((l) => (
+              <LigneLot key={l.lotUuid} lot={l} />
+            ))}
+          </>
+        )}
 
-                    {estEligible && !estEnConfirmation && (
-                      <button
-                        className="btn sec"
-                        style={{ marginTop: 8 }}
-                        disabled={busyId === d.id}
-                        onClick={() => signer(d.id)}
-                      >
-                        {busyId === d.id ? "Signature…" : "Signer ce devis"}
-                      </button>
-                    )}
-
-                    {estEnConfirmation && (
-                      <div className="notice" style={{ marginTop: 8 }}>
-                        <b style={{ display: "block", marginBottom: 6 }}>
-                          Attestation décennale {confirmation.etatDecennale} pour {confirmation.entreprise}.
-                        </b>
-                        Signer quand même ?
-                        <div className="choice" style={{ marginTop: 10, marginBottom: 0 }}>
-                          <span onClick={() => setConfirmation(null)}>Annuler</span>
-                          <span className="on" onClick={() => signer(d.id, true)}>
-                            Signer quand même
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {aPrevenir.length > 0 && (
-                <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                  <p className="sub" style={{ marginBottom: 6 }}>
-                    Entreprises non retenues à prévenir
-                  </p>
-                  {aPrevenir.map((d) => (
-                    <div className="check" key={d.id} onClick={() => prevenir(d.id)} style={{ cursor: "pointer" }}>
-                      <span className="box" />
-                      <span>
-                        {d.entreprise} — {d.id}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {vue === "chronologie" && (
+          <>
+            {chronologie.avecDate.map((l) => (
+              <LigneChronologie key={l.lotUuid} lot={l} aujourdHui={aujourdHui} />
+            ))}
+            {chronologie.sansDate.length > 0 && (
+              <>
+                <p className="sub" style={{ marginTop: 14, marginBottom: 6 }}>
+                  Dates à définir
+                </p>
+                {chronologie.sansDate.map((l) => (
+                  <LigneChronologie key={l.lotUuid} lot={l} aujourdHui={aujourdHui} />
+                ))}
+              </>
+            )}
+          </>
+        )}
       </div>
     </>
+  );
+}
+
+function LigneLot({ lot }: { lot: LotItem }) {
+  const fraction = lot.engage > 0 ? Math.min(100, Math.round((lot.paye / lot.engage) * 100)) : 0;
+  return (
+    <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+      <div className="t">
+        <span>{lot.nom}</span>
+        <span className={`num ${lot.ecartBudget > 0.01 ? "bad" : "good"}`}>
+          {lot.ecartBudget > 0 ? "+" : ""}
+          {euros(lot.ecartBudget)}
+        </span>
+      </div>
+      <div className="m">
+        {lot.entreprise || "aucune entreprise retenue"} · {lot.nbDevis} devis · {lot.etat}
+      </div>
+      <div className="bar" style={{ margin: "8px 0 0" }}>
+        <i style={{ width: `${fraction}%` }} />
+      </div>
+    </Link>
+  );
+}
+
+function LigneChronologie({ lot, aujourdHui }: { lot: LotItem; aujourdHui: Date }) {
+  const fin = parseFr(lot.finPrevue);
+  const enRetard = !!fin && fin < aujourdHui && lot.avancementPct < 100;
+  return (
+    <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+      <div className="t">
+        <span style={enRetard ? { color: "var(--danger)" } : undefined}>{lot.nom}</span>
+        <span className="sub">{lot.avancementPct}%</span>
+      </div>
+      <div className="m" style={enRetard ? { color: "var(--danger)" } : undefined}>
+        {lot.debutPrevu || "début non défini"} → {lot.finPrevue || "fin non définie"}
+        {enRetard ? " · en retard" : ""}
+      </div>
+      <div className="bar" style={{ margin: "8px 0 0" }}>
+        <i style={{ width: `${Math.max(0, Math.min(100, lot.avancementPct))}%` }} />
+      </div>
+    </Link>
   );
 }

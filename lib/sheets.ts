@@ -63,6 +63,9 @@ export async function getLots(): Promise<Lot[]> {
     RESPONSABLE: String(r.RESPONSABLE ?? ""),
     DRIVE_FOLDER_ID: String(r.DRIVE_FOLDER_ID ?? ""),
     ACTIF: String(r.ACTIF ?? ""),
+    DEBUT_PREVU: String(r.DEBUT_PREVU ?? ""),
+    FIN_PREVUE: String(r.FIN_PREVUE ?? ""),
+    AVANCEMENT_PCT: parseNum(r.AVANCEMENT_PCT),
     PERIMETRE: String(r.PERIMETRE ?? ""),
   }));
 }
@@ -185,6 +188,11 @@ export function devisEngage(d: Devis): boolean {
 export function devisCompteScenario(d: Devis): boolean {
   const s = norm(d.STATUT);
   return s === "retenu" || s === "signe" || norm(d.RETENU) === "oui" || norm(d.SIGNE) === "oui";
+}
+
+/** Total du scénario en cours : somme des devis retenus ou signés, tous lots confondus. */
+export function scenarioTotal(devis: Devis[]): number {
+  return round2(devis.filter(devisCompteScenario).reduce((s, d) => s + d.TTC, 0));
 }
 
 /** L'entreprise qui exécute un lot : celle du devis signé, sinon retenu. */
@@ -528,6 +536,61 @@ export async function signDevis(input: SignDevisInput): Promise<SignDevisResult>
   }
 
   return { requiresConfirmation: false, devisId: input.devisId, lotUuid, ecartes };
+}
+
+export type LotPlanningInput = {
+  debutPrevu?: string; // JJ/MM/AAAA
+  finPrevue?: string; // JJ/MM/AAAA
+  avancementPct?: number;
+};
+
+/** Met à jour les trois champs de planning d'un lot (fiche du lot). */
+export async function updateLotPlanning(lotUuid: string, input: LotPlanningInput): Promise<void> {
+  const { headers, rows } = await readTab(TAB.LOTS);
+  const idx = rows.findIndex((r) => String(r.LOT_UUID ?? "") === lotUuid);
+  if (idx < 0) throw new Error("Lot introuvable.");
+
+  const sheets = sheetsClient();
+  const sheetRow = idx + 2;
+  const writes: { col: string; value: string | number }[] = [];
+
+  if (input.debutPrevu !== undefined) {
+    const col = headers.indexOf("DEBUT_PREVU");
+    if (col >= 0) writes.push({ col: colLetter(col), value: input.debutPrevu });
+  }
+  if (input.finPrevue !== undefined) {
+    const col = headers.indexOf("FIN_PREVUE");
+    if (col >= 0) writes.push({ col: colLetter(col), value: input.finPrevue });
+  }
+  if (input.avancementPct !== undefined) {
+    const col = headers.indexOf("AVANCEMENT_PCT");
+    if (col >= 0) writes.push({ col: colLetter(col), value: input.avancementPct });
+  }
+
+  for (const w of writes) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.LOTS}!${w.col}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[w.value]] },
+    });
+  }
+}
+
+/** Suppression douce d'un lot : il disparaît de tous les écrans, la ligne reste tracée. */
+export async function supprimerLot(lotUuid: string): Promise<void> {
+  const { headers, rows } = await readTab(TAB.LOTS);
+  const idx = rows.findIndex((r) => String(r.LOT_UUID ?? "") === lotUuid);
+  if (idx < 0) throw new Error("Lot introuvable.");
+  const col = headers.indexOf("ACTIF");
+  if (col < 0) throw new Error("Colonne ACTIF introuvable.");
+
+  await sheetsClient().spreadsheets.values.update({
+    spreadsheetId: config().spreadsheetId,
+    range: `${TAB.LOTS}!${colLetter(col)}${idx + 2}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [["NON"]] },
+  });
 }
 
 /** Coche ENTREPRISE_PREVENUE une fois l'entreprise non retenue avertie. */

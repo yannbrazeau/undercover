@@ -134,6 +134,19 @@ export default function AjouterPage() {
     chargerListes();
   }, [chargerListes]);
 
+  // Arrivée depuis « Enregistrer une facture » / « Saisir un avenant » sur la
+  // fiche d'un lot : préremplit le lot et le type de document.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const qs = new URLSearchParams(window.location.search);
+    const lotParam = qs.get("lot");
+    const kindParam = qs.get("kind");
+    if (lotParam) setLotUuid(lotParam);
+    if (kindParam === "facture" || kindParam === "paiement" || kindParam === "avenant") {
+      setKind(kindParam);
+    }
+  }, []);
+
   const lot = lots.find((l) => l.uuid === lotUuid);
   const ttc = num(montantTTC);
   const montants = useMemo(

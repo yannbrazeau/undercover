@@ -20,6 +20,9 @@ export type Lot = {
   RESPONSABLE: string;
   DRIVE_FOLDER_ID: string;
   ACTIF: string;
+  DEBUT_PREVU: string;
+  FIN_PREVUE: string;
+  AVANCEMENT_PCT: number;
   PERIMETRE: string;
 };
 
