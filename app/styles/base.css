@@ -83,6 +83,52 @@ h2 {
   font-size: var(--fs-section);
   font-weight: var(--w-bold);
   margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card h4 svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--accent);
+  flex: 0 0 auto;
+}
+
+/* Carte mise en avant — le chiffre que l'utilisateur vient chercher en premier.
+   Un halo doux, pas un aplat : la chaleur vient du dégradé qui s'efface. */
+.card.hero {
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  border-top: 3px solid var(--accent);
+}
+.card.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 200px;
+  background: var(--halo);
+  pointer-events: none;
+}
+.card.hero > * {
+  position: relative;
+}
+.card.hero.depasse {
+  border-top-color: var(--danger);
+}
+.card.hero.depasse::before {
+  background: radial-gradient(
+    120% 160% at 18% -30%,
+    color-mix(in srgb, var(--danger) 20%, transparent),
+    transparent 60%
+  );
+}
+
+/* Phrase d'intention sous un titre de section — dit à quoi ça sert, pas juste ce que c'est. */
+.lead {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+  margin: -4px 0 12px;
 }
 
 /* Montant principal */
@@ -124,12 +170,13 @@ h2 {
   color: var(--danger);
 }
 
-/* Boutons — annoncent une action (verbe), jamais un état. */
+/* Boutons — annoncent une action (verbe), jamais un état. Un léger dégradé
+   au lieu d'un aplat : la même retenue que la carte hero. */
 .btn {
   display: block;
   width: 100%;
   text-align: center;
-  background: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, white), var(--accent));
   color: var(--surface);
   border: 0;
   border-radius: 10px;
@@ -139,6 +186,7 @@ h2 {
   font-family: inherit;
   margin-top: 4px;
   cursor: pointer;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -199,26 +247,47 @@ label {
   color: var(--danger);
 }
 
-/* Blocs de message — soft, sans bordure, une phrase. */
+/* Présence humaine — une entreprise, une personne, jamais une simple ligne
+   de texte anonyme. Halo doux, initiale, jamais une photo générique. */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: var(--w-bold);
+}
+
+/* Blocs de message — une phrase, un aplomb de couleur pour qu'on la voie. */
 .info,
 .warn,
 .alert,
 .ok {
   border-radius: 10px;
+  border-left: 4px solid transparent;
   padding: 12px 14px;
   margin-bottom: 12px;
   font-size: var(--fs-secondary);
 }
 .info {
   background: var(--accent-soft);
+  border-left-color: var(--accent);
   color: var(--ink);
 }
 .warn {
   background: var(--warn-soft);
+  border-left-color: var(--warn);
   color: var(--warn);
 }
 .alert {
   background: var(--danger-soft);
+  border-left-color: var(--danger);
   color: var(--danger);
 }
 .alert b {
@@ -228,6 +297,7 @@ label {
 }
 .ok {
   background: var(--ok-soft);
+  border-left-color: var(--ok);
   color: var(--ok);
 }
 

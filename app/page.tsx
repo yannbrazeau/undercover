@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PiggyBank, TriangleAlert, ShieldAlert } from "lucide-react";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
+
+function initiale(nom: string): string {
+  return (nom.trim()[0] || "?").toUpperCase();
+}
 
 type LotASurveiller = {
   lotUuid: string;
@@ -75,17 +80,18 @@ export default function BudgetPage() {
 
         {budget?.rappelOuvertureChantier && (
           <div className="warn">
-            Date d&apos;ouverture du chantier non déclarée — les attestations décennales
-            restent « valide sous réserve » tant qu&apos;elle n&apos;est pas renseignée.
+            Déclare la date d&apos;ouverture du chantier dès que tu la connais — tant qu&apos;elle
+            manque, les attestations décennales restent « valide sous réserve ».
           </div>
         )}
         {budget?.rappelDommagesOuvrage && (
           <div className="warn">
-            Assurance dommages-ouvrage non souscrite — à faire avant l&apos;ouverture du chantier.
+            Souscris l&apos;assurance dommages-ouvrage avant l&apos;ouverture du chantier — elle
+            n&apos;est pas encore faite.
           </div>
         )}
 
-        <div className="card">
+        <div className={`card hero ${enDepassement ? "depasse" : ""}`}>
           <p className="sub">Il vous reste</p>
           <p className={`amount num ${enDepassement ? "bad" : ""}`}>
             {budget ? euros(budget.ilVousReste) : "—"}
@@ -93,8 +99,14 @@ export default function BudgetPage() {
           <p className="sub">
             sur {budget ? euros(budget.budgetContractuel) : "—"} prévus au contrat
           </p>
+          {enDepassement && (
+            <p className="lead" style={{ margin: "10px 0 0" }}>
+              Regarde d&apos;abord les lots encore sans devis : c&apos;est souvent là que se
+              cache la marge qui manque.
+            </p>
+          )}
 
-          <div className="row">
+          <div className="row" style={{ marginTop: 10 }}>
             <span className="k">Engagé (devis signés)</span>
             <span className="v num">{budget ? euros(budget.engageTotal) : "—"}</span>
           </div>
@@ -109,7 +121,9 @@ export default function BudgetPage() {
         </div>
 
         <div className="card">
-          <h4>Engagé et payé</h4>
+          <h4>
+            <PiggyBank /> Engagé et payé
+          </h4>
           <div className="bar">
             <i style={{ width: `${pctPaye}%` }} />
             <i className="light" style={{ width: `${pctEngageRestant}%` }} />
@@ -130,19 +144,30 @@ export default function BudgetPage() {
         </div>
 
         <div className="card">
-          <h4>À surveiller</h4>
+          <h4>
+            <TriangleAlert /> À surveiller
+          </h4>
           {!budget && (
-            <p className="sub">
+            <p className="lead">
               Les lots en dépassement apparaîtront ici, du plus grave au moins grave.
             </p>
           )}
           {budget && budget.aSurveiller.length === 0 && (
-            <p className="sub">Aucun lot en dépassement pour le moment.</p>
+            <p className="lead" style={{ marginBottom: 0 }}>
+              Aucun lot ne dépasse ce qui a été signé pour le moment.
+            </p>
+          )}
+          {budget && budget.aSurveiller.length > 0 && (
+            <p className="lead">
+              Ces entreprises ont facturé plus que ce qu&apos;elles ont signé, sans avenant
+              validé pour couvrir l&apos;écart — à éclaircir avant de payer.
+            </p>
           )}
           {budget?.aSurveiller.map((l) => (
             <div className="item" key={l.lotUuid}>
               <div className="t">
-                <span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="avatar">{initiale(l.entreprise || l.nom)}</span>
                   {l.nom} <span className="sub">— {l.entreprise}</span>
                 </span>
                 <span className="num bad">{euros(l.ecart)}</span>
@@ -156,14 +181,23 @@ export default function BudgetPage() {
 
         {budget && (budget.decennaleAReclamer.length > 0 || budget.decennaleSousReserve.length > 0) && (
           <div className="card">
-            <h4>Attestations décennales</h4>
+            <h4>
+              <ShieldAlert /> Attestations décennales
+            </h4>
             {budget.decennaleAReclamer.length > 0 && (
               <>
+                <p className="lead" style={{ marginBottom: 6 }}>
+                  Réclame l&apos;attestation de ces entreprises avant de signer avec elles —
+                  après, tu perds ton pouvoir de négociation.
+                </p>
                 <p className="sub">À réclamer ou à renouveler</p>
                 {budget.decennaleAReclamer.map((e) => (
                   <div className="item" key={e.entrepriseId}>
                     <div className="t">
-                      <span>{e.nom}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="avatar">{initiale(e.nom)}</span>
+                        {e.nom}
+                      </span>
                       <span className="pill danger">{e.etat}</span>
                     </div>
                   </div>
@@ -178,7 +212,10 @@ export default function BudgetPage() {
                 {budget.decennaleSousReserve.map((e) => (
                   <div className="item" key={e.entrepriseId}>
                     <div className="t">
-                      <span>{e.nom}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="avatar">{initiale(e.nom)}</span>
+                        {e.nom}
+                      </span>
                       <span className="pill warn">{e.etat}</span>
                     </div>
                   </div>
