@@ -1,0 +1,161 @@
+/* screens.css — spécificités des écrans (barre de scénario, listes, saisie).
+   S'étoffera écran par écran. */
+
+/* Barre de scénario permanente (écran Lots) */
+.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--green2);
+  color: var(--white);
+  padding: 11px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.sticky .l {
+  font-size: var(--fs-secondary);
+  color: var(--soft);
+}
+.sticky .r {
+  font-family: var(--font-title);
+  font-size: 21px;
+}
+
+/* Sélecteur de vue (Liste / Chronologie) */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tabs span {
+  font-size: var(--fs-secondary);
+  padding: 7px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.tabs span.on {
+  background: var(--green2);
+  border-color: var(--green2);
+  color: var(--white);
+}
+
+/* Ligne d'un lot dans une liste */
+.item {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.item .t {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: var(--fs-body);
+}
+.item .m {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* Barre de progression */
+.bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--soft);
+  overflow: hidden;
+  display: flex;
+  margin: 12px 0 10px;
+}
+.bar i {
+  display: block;
+  height: 100%;
+}
+
+/* Écran Ajouter : dépôt de fichier + chips de choix */
+.drop {
+  border: 1px dashed var(--field-border);
+  border-radius: var(--radius);
+  background: var(--white);
+  text-align: center;
+  padding: 22px 10px;
+  margin-bottom: 14px;
+}
+.drop b {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 3px;
+}
+.drop span {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+}
+.choice {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.choice span {
+  flex: 1;
+  text-align: center;
+  font-size: var(--fs-secondary);
+  padding: 10px 0;
+  border-radius: 9px;
+  border: 1px solid var(--field-border);
+  background: var(--white);
+  color: var(--muted);
+}
+.choice span.on {
+  background: var(--green2);
+  border-color: var(--green2);
+  color: var(--white);
+}
+
+/* Cases à cocher (réserves, assurances) */
+.check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-secondary);
+}
+.check:last-child {
+  border-bottom: 0;
+}
+.box {
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--field-border);
+  border-radius: 4px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  background: var(--white);
+}
+.box.on {
+  background: var(--green2);
+  border-color: var(--green2);
+}
+
+/* Liste des variables de configuration (Réglages) */
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-secondary);
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.kv:first-child {
+  border-top: 0;
+}
+.kv code {
+  color: var(--muted);
+  font-family: var(--font-body);
+}

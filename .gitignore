@@ -1,0 +1,22 @@
+# dépendances
+/node_modules
+
+# next.js
+/.next
+/out
+/build
+
+# divers
+.DS_Store
+*.pem
+
+# journaux
+npm-debug.log*
+
+# variables d'environnement — NE JAMAIS committer les secrets
+.env
+.env*.local
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo

@@ -1,0 +1,255 @@
+/* base.css — réinitialisation, typographie, coque, boutons, champs, cartes. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Coque : une colonne centrée, barre de navigation fixée en bas. */
+.app {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--bg);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+}
+
+.screen-body {
+  padding: var(--pad);
+}
+
+/* En-tête d'écran — bandeau vert, sur-intitulé laiton, titre Georgia. */
+.top {
+  background: var(--green);
+  color: var(--white);
+  padding: 18px 16px 16px;
+}
+.top .eyebrow {
+  color: var(--gold);
+  font-size: var(--fs-badge);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+.top h1 {
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: var(--fs-screen);
+  margin: 0;
+  line-height: 1.15;
+}
+
+/* Titres */
+h2 {
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: var(--fs-section);
+  margin: 0 0 10px;
+}
+
+/* Cartes */
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card h4 {
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 18px;
+  margin: 0 0 10px;
+}
+
+/* Montant principal */
+.amount {
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: var(--fs-amount);
+  margin: 2px 0;
+}
+.sub {
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Lignes clé / valeur */
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: var(--fs-secondary);
+  padding: 6px 0;
+}
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+.row .k {
+  color: var(--muted);
+}
+.row .v {
+  font-weight: bold;
+}
+
+/* Couleurs sémantiques de texte */
+.good {
+  color: var(--green2);
+}
+.bad {
+  color: var(--red);
+}
+
+/* Boutons — annoncent une action (verbe), jamais un état. */
+.btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--green2);
+  color: var(--white);
+  border: 0;
+  border-radius: 9px;
+  padding: 13px;
+  font-size: var(--fs-body);
+  font-family: inherit;
+  margin-top: 4px;
+  cursor: pointer;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn.sec {
+  background: var(--white);
+  color: var(--green2);
+  border: 1px solid var(--btn-sec-border);
+}
+.btn.danger {
+  background: var(--white);
+  color: var(--red);
+  border: 1px solid var(--danger-line);
+  font-size: var(--fs-secondary);
+  padding: 10px;
+}
+
+/* Champs */
+label {
+  display: block;
+  font-size: var(--fs-secondary);
+  color: var(--muted);
+  margin: 0 0 5px;
+}
+.field {
+  width: 100%;
+  background: var(--white);
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  padding: 12px;
+  font-size: var(--fs-body);
+  font-family: inherit;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.field:focus {
+  outline: 2px solid var(--green2);
+  outline-offset: 1px;
+}
+
+/* Pastilles et badges — 12 px minimum, réservés aux états courts. */
+.pill {
+  display: inline-block;
+  background: var(--soft);
+  color: var(--pill-ink);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: var(--fs-badge);
+}
+.pill.warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.pill.danger {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+/* Blocs de message — une phrase, dire ce qui se passe puis quoi faire. */
+.alert,
+.notice,
+.ok {
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: var(--fs-secondary);
+}
+.alert {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-line);
+  color: var(--danger-ink);
+}
+.alert b {
+  display: block;
+  margin-bottom: 4px;
+}
+.notice {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  color: var(--warn-ink);
+}
+.ok {
+  background: var(--soft);
+  border: 1px solid var(--ok-line);
+  color: var(--ok-ink);
+}
+
+/* Navigation — quatre entrées, libellés toujours visibles, identiques partout. */
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--white);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  display: flex;
+}
+.nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 0 7px;
+  font-size: var(--fs-badge);
+  color: var(--muted);
+  text-decoration: none;
+}
+.nav a svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+}
+.nav a.on {
+  color: var(--green2);
+}
