@@ -38,10 +38,12 @@ export const STATUT_DEVIS = {
 export type Devis = {
   DEVIS_ID: string;
   LOT_UUID: string;
+  LOT: string;
   ENTREPRISE_ID: string;
   ENTREPRISE: string;
   TTC: number;
   STATUT: string; // vocabulaire contrôlé (STATUT_DEVIS) — fait foi à lui seul
+  DATE_SIGNATURE: string;
   REMPLACE: string; // DEVIS_ID de la version précédente (versionnage, jamais d'écrasement)
   ENTREPRISE_PREVENUE: string; // oui/non, une fois le devis écarté
   // Champs hérités — lus tant que le classeur n'est pas migré au nouveau modèle.
@@ -75,6 +77,19 @@ export type Facture = {
   NET_A_PAYER: number;
   STATUT: string;
   DATE_PAIEMENT: string;
+  DRIVE_URL: string;
+  COMMENTAIRE: string;
+};
+
+export type Avenant = {
+  AVENANT_ID: string;
+  LOT_UUID: string;
+  LOT: string;
+  ENTREPRISE_ID: string;
+  DESCRIPTION: string;
+  MONTANT_TTC: number; // positif ou négatif
+  DATE: string;
+  VALIDE_PAR: string;
   DRIVE_URL: string;
   COMMENTAIRE: string;
 };

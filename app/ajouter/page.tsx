@@ -20,8 +20,8 @@ const MOYENS = ["Virement", "Chèque", "Espèces", "Autre"];
 const KINDS = [
   { key: "facture", label: "Facture", enabled: true },
   { key: "paiement", label: "Paiement", enabled: true },
+  { key: "avenant", label: "Avenant", enabled: true },
   { key: "devis", label: "Devis", enabled: false },
-  { key: "avenant", label: "Avenant", enabled: false },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
 
@@ -105,9 +105,14 @@ export default function AjouterPage() {
   const [moyen, setMoyen] = useState(MOYENS[0]);
   const [reference, setReference] = useState("");
 
+  // Avenant
+  const [avenantDescription, setAvenantDescription] = useState("");
+  const [avenantMontant, setAvenantMontant] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  const [alerte, setAlerte] = useState("");
 
   const chargerListes = useCallback(() => {
     Promise.all([
@@ -154,11 +159,22 @@ export default function AjouterPage() {
   const resetMessages = () => {
     setError("");
     setDone("");
+    setAlerte("");
   };
 
+  const montantAvenant = num(avenantMontant);
   const canSubmitFacture = configured === true && !!lotUuid && ttc > 0 && !submitting;
   const canSubmitPaiement = configured === true && !!factureId && montantRegle > 0 && !submitting;
-  const canSubmit = kind === "facture" ? canSubmitFacture : kind === "paiement" ? canSubmitPaiement : false;
+  const canSubmitAvenant =
+    configured === true && !!lotUuid && !!avenantDescription.trim() && montantAvenant !== 0 && !submitting;
+  const canSubmit =
+    kind === "facture"
+      ? canSubmitFacture
+      : kind === "paiement"
+        ? canSubmitPaiement
+        : kind === "avenant"
+          ? canSubmitAvenant
+          : false;
 
   const submitFacture = useCallback(async () => {
     let driveUrl = "";
@@ -198,9 +214,31 @@ export default function AjouterPage() {
 
     const fac = json.facture as { FACTURE_ID?: string } | undefined;
     setDone(`Facture ${fac?.FACTURE_ID ?? ""} enregistrée. Elle apparaît dans le lot.`);
+    const alerteJson = json.alerte as { message?: string } | null;
+    if (alerteJson?.message) setAlerte(alerteJson.message);
     setMontantTTC("");
     clearFile();
   }, [file, lotUuid, nature, ttc, tauxRetenue]);
+
+  const submitAvenant = useCallback(async () => {
+    const res = await fetch("/api/avenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lotUuid,
+        description: avenantDescription,
+        montantTTC: montantAvenant,
+        date: todayFr(),
+      }),
+    });
+    const json = await readJson(res);
+    if (!res.ok) throw new Error(String(json.error) || "L'enregistrement a échoué.");
+
+    const ave = json.avenant as { AVENANT_ID?: string } | undefined;
+    setDone(`Avenant ${ave?.AVENANT_ID ?? ""} enregistré. L'engagé du lot est mis à jour.`);
+    setAvenantDescription("");
+    setAvenantMontant("");
+  }, [lotUuid, avenantDescription, montantAvenant]);
 
   const submitPaiement = useCallback(async () => {
     const res = await fetch("/api/paiements", {
@@ -234,6 +272,7 @@ export default function AjouterPage() {
     try {
       if (kind === "facture") await submitFacture();
       else if (kind === "paiement") await submitPaiement();
+      else if (kind === "avenant") await submitAvenant();
       chargerListes();
     } catch (e) {
       setError((e as Error).message);
@@ -241,13 +280,19 @@ export default function AjouterPage() {
       setSubmitting(false);
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [kind, submitFacture, submitPaiement, chargerListes]);
+  }, [kind, submitFacture, submitPaiement, submitAvenant, chargerListes]);
 
   return (
     <>
       <ScreenHeader eyebrow="Nouveau document" title="Ajouter" />
       <div className="screen-body">
         {done && <div className="ok">{done}</div>}
+        {alerte && (
+          <div className="alert">
+            <b>Dépassement du marché signé</b>
+            <span>{alerte}</span>
+          </div>
+        )}
         {error && (
           <div className="alert">
             <b>L&apos;enregistrement n&apos;a pas abouti</b>
@@ -429,12 +474,65 @@ export default function AjouterPage() {
           </>
         )}
 
+        {kind === "avenant" && (
+          <>
+            <label>Pour quel lot ?</label>
+            {configured === false ? (
+              <div className="info">
+                La liste des lots demande la connexion Google. Une fois les identifiants en place,
+                elle se remplit toute seule.
+              </div>
+            ) : (
+              <select
+                className="field"
+                value={lotUuid}
+                onChange={(e) => setLotUuid(e.target.value)}
+                aria-label="Pour quel lot"
+              >
+                <option value="">Choisir un lot…</option>
+                {lots.map((l) => (
+                  <option key={l.uuid} value={l.uuid}>
+                    {l.nom}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <label>Description</label>
+            <input
+              className="field"
+              placeholder="Reprise de fondations non prévue au devis"
+              value={avenantDescription}
+              onChange={(e) => setAvenantDescription(e.target.value)}
+            />
+
+            <label>Montant TTC</label>
+            <input
+              className="field"
+              inputMode="decimal"
+              placeholder="Positif ou négatif, ex. -500"
+              value={avenantMontant}
+              onChange={(e) => setAvenantMontant(e.target.value)}
+            />
+
+            {montantAvenant !== 0 && (
+              <div className="info num">
+                {montantAvenant > 0
+                  ? `Augmente l'engagé du lot de ${euros(montantAvenant)}.`
+                  : `Diminue l'engagé du lot de ${euros(Math.abs(montantAvenant))}.`}
+              </div>
+            )}
+          </>
+        )}
+
         <button className="btn" onClick={submit} disabled={!canSubmit}>
           {submitting
             ? "Enregistrement…"
             : kind === "paiement"
               ? "Enregistrer le paiement"
-              : "Enregistrer la facture"}
+              : kind === "avenant"
+                ? "Enregistrer l'avenant"
+                : "Enregistrer la facture"}
         </button>
       </div>
     </>

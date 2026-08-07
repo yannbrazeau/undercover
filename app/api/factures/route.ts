@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     const rawDate = String(body.date ?? "");
     const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate) ? isoToFr(rawDate) : rawDate;
 
-    const facture = await addFacture({
+    const { facture, alerte } = await addFacture({
       lotUuid,
       nature: String(body.nature ?? "").trim() || "Facture",
       montantTTC,
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       driveUrl: body.driveUrl ? String(body.driveUrl) : undefined,
     });
 
-    return NextResponse.json({ facture });
+    return NextResponse.json({ facture, alerte });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;
     return NextResponse.json({ error: (e as Error).message }, { status });
