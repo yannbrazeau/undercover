@@ -3,15 +3,27 @@
 import { sheetsClient } from "./google";
 import { config } from "./config";
 import { norm, parseNum } from "./format";
-import { computeFacture, nextId } from "./facture";
+import { computeFacture, nextId, round2 } from "./facture";
 import {
   TAB,
   type Lot,
   type Devis,
   type Entreprise,
   type Facture,
+  type Paiement,
   type ProjetParams,
 } from "./types";
+
+function colLetter(index0: number): string {
+  let n = index0 + 1;
+  let s = "";
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
 
 type Table = { headers: string[]; rows: Record<string, unknown>[] };
 
@@ -103,6 +115,22 @@ export async function getFactures(): Promise<Facture[]> {
       STATUT: String(r.STATUT ?? ""),
       DATE_PAIEMENT: String(r.DATE_PAIEMENT ?? ""),
       DRIVE_URL: String(r.DRIVE_URL ?? ""),
+      COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
+    }));
+}
+
+export async function getPaiements(): Promise<Paiement[]> {
+  const { rows } = await readTab(TAB.PAIEMENTS);
+  return rows
+    .filter((r) => !isExample(r))
+    .filter((r) => String(r.PAIEMENT_ID ?? "") !== "")
+    .map((r) => ({
+      PAIEMENT_ID: String(r.PAIEMENT_ID ?? ""),
+      FACTURE_ID: String(r.FACTURE_ID ?? ""),
+      DATE: String(r.DATE ?? ""),
+      MONTANT: parseNum(r.MONTANT),
+      MOYEN: String(r.MOYEN ?? ""),
+      REFERENCE: String(r.REFERENCE ?? ""),
       COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
     }));
 }
@@ -201,4 +229,78 @@ export async function addFacture(input: NewFacture): Promise<Record<string, unkn
 
   await appendRow(TAB.FACTURES, headers, row);
   return row;
+}
+
+export type NewPaiement = {
+  factureId: string;
+  montant: number;
+  date: string; // JJ/MM/AAAA
+  moyen?: string;
+  reference?: string;
+  commentaire?: string;
+};
+
+export type PaiementResult = {
+  paiement: Record<string, unknown>;
+  statut: "payée" | "à payer";
+  resteDu: number;
+};
+
+/**
+ * Enregistre un paiement — toujours un geste explicite, avec date et montant.
+ * Rien n'est déduit d'un rapprochement automatique. Un paiement partiel laisse
+ * la facture en « à payer » avec le reste dû ; le solde bascule en « payée ».
+ */
+export async function addPaiement(input: NewPaiement): Promise<PaiementResult> {
+  const [{ headers: paiHeaders, rows: paiRows }, factTable, paiementsExistants] = await Promise.all([
+    readTab(TAB.PAIEMENTS),
+    readTab(TAB.FACTURES),
+    getPaiements(),
+  ]);
+
+  const idx = factTable.rows.findIndex((r) => String(r.FACTURE_ID ?? "") === input.factureId);
+  if (idx < 0) throw new Error("Facture introuvable.");
+
+  const netAPayer = parseNum(factTable.rows[idx].NET_A_PAYER);
+  const dejaPaye = paiementsExistants
+    .filter((p) => p.FACTURE_ID === input.factureId)
+    .reduce((s, p) => s + p.MONTANT, 0);
+
+  const row: Record<string, unknown> = {
+    PAIEMENT_ID: nextId("PAY-", paiRows.map((r) => String(r.PAIEMENT_ID ?? ""))),
+    FACTURE_ID: input.factureId,
+    DATE: input.date,
+    MONTANT: input.montant,
+    MOYEN: input.moyen || "",
+    REFERENCE: input.reference || "",
+    COMMENTAIRE: input.commentaire || "",
+  };
+  await appendRow(TAB.PAIEMENTS, paiHeaders, row);
+
+  const resteDu = Math.max(0, round2(netAPayer - (dejaPaye + input.montant)));
+  const statut: "payée" | "à payer" = resteDu <= 0.01 ? "payée" : "à payer";
+
+  const sheets = sheetsClient();
+  const statutCol = factTable.headers.indexOf("STATUT");
+  const dateCol = factTable.headers.indexOf("DATE_PAIEMENT");
+  const sheetRow = idx + 2;
+
+  if (statutCol >= 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.FACTURES}!${colLetter(statutCol)}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[statut]] },
+    });
+  }
+  if (dateCol >= 0 && statut === "payée") {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.FACTURES}!${colLetter(dateCol)}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[input.date]] },
+    });
+  }
+
+  return { paiement: row, statut, resteDu };
 }

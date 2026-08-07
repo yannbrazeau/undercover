@@ -79,6 +79,16 @@ export type Facture = {
   COMMENTAIRE: string;
 };
 
+export type Paiement = {
+  PAIEMENT_ID: string;
+  FACTURE_ID: string;
+  DATE: string;
+  MONTANT: number;
+  MOYEN: string;
+  REFERENCE: string;
+  COMMENTAIRE: string;
+};
+
 /** Paramètres de niveau projet (onglet clé/valeur DATA_PROJET). */
 export type ProjetParams = {
   budgetContractuel: number;
