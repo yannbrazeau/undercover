@@ -20,8 +20,6 @@ export type Lot = {
   RESPONSABLE: string;
   DRIVE_FOLDER_ID: string;
   ACTIF: string;
-  TAUX_TVA: number;
-  ATTESTATION_TVA: string;
   PERIMETRE: string;
 };
 
@@ -44,6 +42,7 @@ export type Entreprise = {
   DECENNALE_FIN: string;
   DECENNALE_ACTIVITES: string;
   DECENNALE_DRIVE_URL: string;
+  ATTESTATION_TVA_REMISE: string; // oui/non — remise du CERFA, action unique, sans calcul
 };
 
 export type Facture = {
@@ -55,9 +54,7 @@ export type Facture = {
   NATURE: string;
   NUMERO: string;
   DATE: string;
-  MONTANT_HT: number;
-  TAUX_TVA: number;
-  MONTANT_TVA: number;
+  MONTANT_HT: number; // facultatif — archive uniquement, aucun calcul ne s'y appuie
   MONTANT_TTC: number;
   RETENUE_GARANTIE: number;
   NET_A_PAYER: number;

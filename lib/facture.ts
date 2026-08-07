@@ -1,17 +1,15 @@
 // Cœur calculable d'une facture — pur, sans dépendance, testable seul.
-// Une facture porte deux montants de référence : le TTC et le net à payer
-// (TTC diminué de la retenue de garantie). C'est le net à payer qui sera réglé.
+// Tout se compare en TTC. Une facture porte deux montants de référence : le TTC
+// et le net à payer (TTC diminué de la retenue de garantie). C'est le net qui est réglé.
+// L'outil ne pilote pas la TVA : une facture de travaux mêle plusieurs taux sur la
+// même pièce, un « taux de TVA » serait faux. Le HT n'est conservé qu'en archive.
 
 export type FactureSaisie = {
-  montantHT: number;
-  tauxTVA: number; // en %
+  montantTTC: number;
   tauxRetenue: number; // en %, 0 si le marché n'en prévoit pas
 };
 
 export type FactureMontants = {
-  montantHT: number;
-  tauxTVA: number;
-  montantTVA: number;
   montantTTC: number;
   retenueGarantie: number;
   netAPayer: number;
@@ -22,14 +20,12 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Calcule TVA, TTC, retenue et net à payer à partir du HT et des deux taux. */
-export function computeFacture({ montantHT, tauxTVA, tauxRetenue }: FactureSaisie): FactureMontants {
-  const ht = round2(montantHT);
-  const montantTVA = round2((ht * tauxTVA) / 100);
-  const montantTTC = round2(ht + montantTVA);
-  const retenueGarantie = round2((montantTTC * tauxRetenue) / 100);
-  const netAPayer = round2(montantTTC - retenueGarantie);
-  return { montantHT: ht, tauxTVA, montantTVA, montantTTC, retenueGarantie, netAPayer };
+/** Déduit la retenue et le net à payer à partir du TTC et du taux de retenue. */
+export function computeFacture({ montantTTC, tauxRetenue }: FactureSaisie): FactureMontants {
+  const ttc = round2(montantTTC);
+  const retenueGarantie = round2((ttc * tauxRetenue) / 100);
+  const netAPayer = round2(ttc - retenueGarantie);
+  return { montantTTC: ttc, retenueGarantie, netAPayer };
 }
 
 /**

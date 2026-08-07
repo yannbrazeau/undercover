@@ -5,7 +5,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 import { computeFacture } from "@/lib/facture";
 import { euros, todayFr } from "@/lib/format";
 
-type LotOption = { uuid: string; nom: string; tauxTVA: number };
+type LotOption = { uuid: string; nom: string };
 const NATURES = ["Acompte", "Situation d'avancement", "Solde"];
 
 function num(s: string): number {
@@ -16,13 +16,11 @@ function num(s: string): number {
 export default function AjouterPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [lots, setLots] = useState<LotOption[]>([]);
-  const [defaultRetenue, setDefaultRetenue] = useState("5");
 
   const [file, setFile] = useState<File | null>(null);
   const [lotUuid, setLotUuid] = useState("");
   const [nature, setNature] = useState(NATURES[0]);
-  const [montantHT, setMontantHT] = useState("");
-  const [tauxTVA, setTauxTVA] = useState("");
+  const [montantTTC, setMontantTTC] = useState("");
   const [tauxRetenue, setTauxRetenue] = useState("5");
 
   const [submitting, setSubmitting] = useState(false);
@@ -37,11 +35,7 @@ export default function AjouterPage() {
         if (status === 200) {
           setConfigured(true);
           setLots(d.lots ?? []);
-          if (d.defaults?.tauxRetenue != null) {
-            const t = String(d.defaults.tauxRetenue);
-            setDefaultRetenue(t);
-            setTauxRetenue(t);
-          }
+          if (d.defaults?.tauxRetenue != null) setTauxRetenue(String(d.defaults.tauxRetenue));
         } else {
           setConfigured(false);
         }
@@ -50,19 +44,13 @@ export default function AjouterPage() {
   }, []);
 
   const lot = lots.find((l) => l.uuid === lotUuid);
-  const ht = num(montantHT);
+  const ttc = num(montantTTC);
   const montants = useMemo(
-    () => computeFacture({ montantHT: ht, tauxTVA: num(tauxTVA), tauxRetenue: num(tauxRetenue) }),
-    [ht, tauxTVA, tauxRetenue],
+    () => computeFacture({ montantTTC: ttc, tauxRetenue: num(tauxRetenue) }),
+    [ttc, tauxRetenue],
   );
 
-  const onPickLot = (uuid: string) => {
-    setLotUuid(uuid);
-    const l = lots.find((x) => x.uuid === uuid);
-    if (l && l.tauxTVA > 0) setTauxTVA(String(l.tauxTVA));
-  };
-
-  const canSubmit = configured === true && !!lotUuid && ht > 0 && !submitting;
+  const canSubmit = configured === true && !!lotUuid && ttc > 0 && !submitting;
 
   const submit = useCallback(async () => {
     setError("");
@@ -85,8 +73,7 @@ export default function AjouterPage() {
         body: JSON.stringify({
           lotUuid,
           nature,
-          montantHT: ht,
-          tauxTVA: num(tauxTVA),
+          montantTTC: ttc,
           tauxRetenue: num(tauxRetenue),
           date: todayFr(),
           driveUrl,
@@ -95,7 +82,7 @@ export default function AjouterPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "L'enregistrement a échoué.");
       setDone(`Facture ${json.facture.FACTURE_ID} enregistrée. Elle apparaît dans le lot.`);
-      setMontantHT("");
+      setMontantTTC("");
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
@@ -103,7 +90,7 @@ export default function AjouterPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [file, lotUuid, nature, ht, tauxTVA, tauxRetenue]);
+  }, [file, lotUuid, nature, ttc, tauxRetenue]);
 
   return (
     <>
@@ -147,7 +134,7 @@ export default function AjouterPage() {
           <select
             className="field"
             value={lotUuid}
-            onChange={(e) => onPickLot(e.target.value)}
+            onChange={(e) => setLotUuid(e.target.value)}
             aria-label="Pour quel lot"
           >
             <option value="">Choisir un lot…</option>
@@ -168,36 +155,27 @@ export default function AjouterPage() {
           ))}
         </select>
 
-        <label>Montant HT</label>
+        <label>Montant TTC</label>
         <input
           className="field"
           inputMode="decimal"
           placeholder="0,00 €"
-          value={montantHT}
-          onChange={(e) => setMontantHT(e.target.value)}
-        />
-
-        <label>Taux de TVA</label>
-        <input
-          className="field"
-          inputMode="decimal"
-          placeholder="10 %"
-          value={tauxTVA}
-          onChange={(e) => setTauxTVA(e.target.value)}
+          value={montantTTC}
+          onChange={(e) => setMontantTTC(e.target.value)}
         />
 
         <label>Retenue de garantie</label>
         <input
           className="field"
           inputMode="decimal"
-          placeholder={`${defaultRetenue} %`}
+          placeholder="5 %"
           value={tauxRetenue}
           onChange={(e) => setTauxRetenue(e.target.value)}
         />
 
-        {ht > 0 && (
+        {ttc > 0 && (
           <div className="info num">
-            Montant TTC {euros(montants.montantTTC)} · net à payer {euros(montants.netAPayer)}
+            Retenue {euros(montants.retenueGarantie)} · net à payer {euros(montants.netAPayer)}
             <br />
             {lot ? `Sera rangé dans ${lot.nom} → Factures` : "Choisissez un lot pour le classement"}
           </div>

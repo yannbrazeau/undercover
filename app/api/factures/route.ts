@@ -12,15 +12,12 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const lotUuid = String(body.lotUuid ?? "").trim();
-    const montantHT = Number(body.montantHT);
-    const tauxTVA = Number(body.tauxTVA);
+    const montantTTC = Number(body.montantTTC);
     const tauxRetenue = Number(body.tauxRetenue ?? 0);
 
     if (!lotUuid) throw new AppError("Choisissez un lot.");
-    if (!Number.isFinite(montantHT) || montantHT <= 0)
-      throw new AppError("Le montant HT doit être un nombre positif.");
-    if (!Number.isFinite(tauxTVA) || tauxTVA < 0)
-      throw new AppError("Le taux de TVA est invalide.");
+    if (!Number.isFinite(montantTTC) || montantTTC <= 0)
+      throw new AppError("Le montant TTC doit être un nombre positif.");
 
     const rawDate = String(body.date ?? "");
     const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate) ? isoToFr(rawDate) : rawDate;
@@ -28,8 +25,7 @@ export async function POST(req: Request) {
     const facture = await addFacture({
       lotUuid,
       nature: String(body.nature ?? "").trim() || "Facture",
-      montantHT,
-      tauxTVA,
+      montantTTC,
       tauxRetenue: Number.isFinite(tauxRetenue) ? tauxRetenue : 0,
       numero: body.numero ? String(body.numero) : undefined,
       date,

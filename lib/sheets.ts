@@ -48,8 +48,6 @@ export async function getLots(): Promise<Lot[]> {
     RESPONSABLE: String(r.RESPONSABLE ?? ""),
     DRIVE_FOLDER_ID: String(r.DRIVE_FOLDER_ID ?? ""),
     ACTIF: String(r.ACTIF ?? ""),
-    TAUX_TVA: parseNum(r.TAUX_TVA),
-    ATTESTATION_TVA: String(r.ATTESTATION_TVA ?? ""),
     PERIMETRE: String(r.PERIMETRE ?? ""),
   }));
 }
@@ -78,6 +76,7 @@ export async function getEntreprises(): Promise<Entreprise[]> {
     DECENNALE_FIN: String(r.DECENNALE_FIN ?? ""),
     DECENNALE_ACTIVITES: String(r.DECENNALE_ACTIVITES ?? ""),
     DECENNALE_DRIVE_URL: String(r.DECENNALE_DRIVE_URL ?? ""),
+    ATTESTATION_TVA_REMISE: String(r.ATTESTATION_TVA_REMISE ?? ""),
   }));
 }
 
@@ -96,8 +95,6 @@ export async function getFactures(): Promise<Facture[]> {
       NUMERO: String(r.NUMERO ?? ""),
       DATE: String(r.DATE ?? ""),
       MONTANT_HT: parseNum(r.MONTANT_HT),
-      TAUX_TVA: parseNum(r.TAUX_TVA),
-      MONTANT_TVA: parseNum(r.MONTANT_TVA),
       MONTANT_TTC: parseNum(r.MONTANT_TTC),
       RETENUE_GARANTIE: parseNum(r.RETENUE_GARANTIE),
       NET_A_PAYER: parseNum(r.NET_A_PAYER),
@@ -145,8 +142,7 @@ async function appendRow(tab: string, headers: string[], obj: Record<string, unk
 export type NewFacture = {
   lotUuid: string;
   nature: string;
-  montantHT: number;
-  tauxTVA: number;
+  montantTTC: number;
   tauxRetenue: number;
   numero?: string;
   date: string; // JJ/MM/AAAA
@@ -154,8 +150,8 @@ export type NewFacture = {
   commentaire?: string;
 };
 
-/** Enregistre une facture dans DATA_FACTURES — la fonction qui manquait. */
-export async function addFacture(input: NewFacture): Promise<Facture> {
+/** Enregistre une facture dans DATA_FACTURES — la fonction qui manquait. Tout en TTC. */
+export async function addFacture(input: NewFacture): Promise<Record<string, unknown>> {
   const [{ headers, rows }, lots, devis] = await Promise.all([
     readTab(TAB.FACTURES),
     getLots(),
@@ -166,13 +162,9 @@ export async function addFacture(input: NewFacture): Promise<Facture> {
   if (!lot) throw new Error("Lot introuvable pour cette facture.");
 
   const entreprise = resolveEntrepriseForLot(lot.LOT_UUID, devis);
-  const m = computeFacture({
-    montantHT: input.montantHT,
-    tauxTVA: input.tauxTVA,
-    tauxRetenue: input.tauxRetenue,
-  });
+  const m = computeFacture({ montantTTC: input.montantTTC, tauxRetenue: input.tauxRetenue });
 
-  const facture: Facture = {
+  const row: Record<string, unknown> = {
     FACTURE_ID: nextId("FAC-", rows.map((r) => String(r.FACTURE_ID ?? ""))),
     LOT_UUID: lot.LOT_UUID,
     LOT: lot.NOM,
@@ -181,9 +173,7 @@ export async function addFacture(input: NewFacture): Promise<Facture> {
     NATURE: input.nature,
     NUMERO: input.numero || "",
     DATE: input.date,
-    MONTANT_HT: m.montantHT,
-    TAUX_TVA: m.tauxTVA,
-    MONTANT_TVA: m.montantTVA,
+    MONTANT_HT: "", // facultatif — archive, non saisi
     MONTANT_TTC: m.montantTTC,
     RETENUE_GARANTIE: m.retenueGarantie,
     NET_A_PAYER: m.netAPayer,
@@ -193,6 +183,6 @@ export async function addFacture(input: NewFacture): Promise<Facture> {
     COMMENTAIRE: input.commentaire || "",
   };
 
-  await appendRow(TAB.FACTURES, headers, facture as unknown as Record<string, unknown>);
-  return facture;
+  await appendRow(TAB.FACTURES, headers, row);
+  return row;
 }

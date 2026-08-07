@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({
       lots: lots
         .filter((l) => norm(l.ACTIF) === "oui")
-        .map((l) => ({ uuid: l.LOT_UUID, nom: l.NOM, tauxTVA: l.TAUX_TVA })),
+        .map((l) => ({ uuid: l.LOT_UUID, nom: l.NOM })),
       defaults: { tauxRetenue: projet.tauxRetenueGarantie },
     });
   } catch (e) {
