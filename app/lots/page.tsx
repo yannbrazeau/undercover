@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
@@ -36,7 +36,14 @@ export default function LotsPage() {
   const [vue, setVue] = useState<"liste" | "chronologie">("liste");
   const [recherche, setRecherche] = useState("");
 
-  useEffect(() => {
+  const [ajoutOuvert, setAjoutOuvert] = useState(false);
+  const [nouveauNom, setNouveauNom] = useState("");
+  const [nouveauBudget, setNouveauBudget] = useState("");
+  const [nouveauPerimetre, setNouveauPerimetre] = useState("");
+  const [creation, setCreation] = useState(false);
+  const [erreurCreation, setErreurCreation] = useState("");
+
+  const charger = useCallback(() => {
     fetch("/api/lots/liste", { cache: "no-store" })
       .then((r) => r.json().then((d) => ({ status: r.status, d })))
       .then(({ status, d }) => {
@@ -49,6 +56,39 @@ export default function LotsPage() {
       })
       .catch(() => setConfigured(false));
   }, []);
+
+  useEffect(() => {
+    charger();
+  }, [charger]);
+
+  const creerLot = useCallback(async () => {
+    const nom = nouveauNom.trim();
+    if (!nom) return;
+    setCreation(true);
+    setErreurCreation("");
+    try {
+      const res = await fetch("/api/lots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom,
+          budgetTTC: nouveauBudget ? Number(nouveauBudget.replace(",", ".")) : undefined,
+          perimetre: nouveauPerimetre,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "La création a échoué.");
+      setNouveauNom("");
+      setNouveauBudget("");
+      setNouveauPerimetre("");
+      setAjoutOuvert(false);
+      charger();
+    } catch (e) {
+      setErreurCreation((e as Error).message);
+    } finally {
+      setCreation(false);
+    }
+  }, [nouveauNom, nouveauBudget, nouveauPerimetre, charger]);
 
   const ecartScenario = scenario - budgetContractuel;
 
@@ -99,6 +139,52 @@ export default function LotsPage() {
 
         {configured === false && (
           <div className="info">La liste des lots demande la connexion Google.</div>
+        )}
+
+        {!ajoutOuvert && (
+          <button className="btn sec" style={{ marginBottom: 14 }} onClick={() => setAjoutOuvert(true)}>
+            Ajouter un lot
+          </button>
+        )}
+
+        {ajoutOuvert && (
+          <div className="card">
+            <h4>Nouveau lot</h4>
+            {erreurCreation && (
+              <div className="alert">
+                <b>La création n&apos;a pas abouti</b>
+                <span>{erreurCreation}</span>
+              </div>
+            )}
+            <label>Nom</label>
+            <input
+              className="field"
+              placeholder="Panneaux solaires"
+              value={nouveauNom}
+              onChange={(e) => setNouveauNom(e.target.value)}
+            />
+            <label>Budget TTC estimé</label>
+            <input
+              className="field"
+              inputMode="decimal"
+              placeholder="0,00 €"
+              value={nouveauBudget}
+              onChange={(e) => setNouveauBudget(e.target.value)}
+            />
+            <label>Périmètre</label>
+            <input
+              className="field"
+              placeholder="Ce que couvre le lot"
+              value={nouveauPerimetre}
+              onChange={(e) => setNouveauPerimetre(e.target.value)}
+            />
+            <div className="choice" style={{ marginBottom: 0 }}>
+              <span onClick={() => setAjoutOuvert(false)}>Annuler</span>
+              <span className="on" onClick={creerLot}>
+                {creation ? "Création…" : "Créer le lot"}
+              </span>
+            </div>
+          </div>
         )}
 
         {vue === "liste" && (
