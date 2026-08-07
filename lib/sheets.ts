@@ -61,6 +61,8 @@ export async function getDevis(): Promise<Devis[]> {
     ENTREPRISE: String(r.ENTREPRISE ?? ""),
     TTC: parseNum(r.TTC),
     STATUT: String(r.STATUT ?? ""),
+    REMPLACE: String(r.REMPLACE ?? ""),
+    ENTREPRISE_PREVENUE: String(r.ENTREPRISE_PREVENUE ?? ""),
     RETENU: String(r.RETENU ?? ""),
     SIGNE: String(r.SIGNE ?? ""),
   }));
@@ -118,12 +120,26 @@ export async function getProjet(): Promise<ProjetParams> {
   };
 }
 
-/** L'entreprise qui exécute un lot : celle de son devis signé, sinon retenu. */
+// Sémantique du STATUT (source unique). Repli sur les anciennes colonnes
+// RETENU/SIGNE tant que le classeur n'est pas migré au nouveau modèle.
+
+/** Un devis « signé » engage le lot — c'est lui, plus les avenants, qui plafonne la facturation. */
+export function devisEngage(d: Devis): boolean {
+  return norm(d.STATUT) === "signe" || norm(d.SIGNE) === "oui";
+}
+
+/** Un devis « retenu » ou « signé » compte dans le scénario en cours. */
+export function devisCompteScenario(d: Devis): boolean {
+  const s = norm(d.STATUT);
+  return s === "retenu" || s === "signe" || norm(d.RETENU) === "oui" || norm(d.SIGNE) === "oui";
+}
+
+/** L'entreprise qui exécute un lot : celle du devis signé, sinon retenu. */
 export function resolveEntrepriseForLot(lotUuid: string, devis: Devis[]) {
   const lotDevis = devis.filter((d) => d.LOT_UUID === lotUuid);
   const chosen =
-    lotDevis.find((d) => norm(d.SIGNE) === "oui") ??
-    lotDevis.find((d) => norm(d.RETENU) === "oui");
+    lotDevis.find(devisEngage) ??
+    lotDevis.find((d) => norm(d.STATUT) === "retenu" || norm(d.RETENU) === "oui");
   return { id: chosen?.ENTREPRISE_ID ?? "", nom: chosen?.ENTREPRISE ?? "" };
 }
 

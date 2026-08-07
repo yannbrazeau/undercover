@@ -23,15 +23,30 @@ export type Lot = {
   PERIMETRE: string;
 };
 
+// Vocabulaire contrôlé de STATUT (source unique de vérité pour un devis).
+export const STATUT_DEVIS = {
+  RECU: "reçu",
+  A_CORRIGER: "à corriger",
+  REMPLACE: "remplacé",
+  RETENU: "retenu",
+  SIGNE: "signé",
+  ECARTE: "écarté",
+  EXPIRE: "expiré",
+  ANNEXE: "annexe",
+} as const;
+
 export type Devis = {
   DEVIS_ID: string;
   LOT_UUID: string;
   ENTREPRISE_ID: string;
   ENTREPRISE: string;
   TTC: number;
-  STATUT: string;
-  RETENU: string;
-  SIGNE: string;
+  STATUT: string; // vocabulaire contrôlé (STATUT_DEVIS) — fait foi à lui seul
+  REMPLACE: string; // DEVIS_ID de la version précédente (versionnage, jamais d'écrasement)
+  ENTREPRISE_PREVENUE: string; // oui/non, une fois le devis écarté
+  // Champs hérités — lus tant que le classeur n'est pas migré au nouveau modèle.
+  RETENU?: string;
+  SIGNE?: string;
 };
 
 export type Entreprise = {
