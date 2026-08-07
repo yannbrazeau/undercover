@@ -28,6 +28,13 @@ export function driveClient() {
   return google.drive({ version: "v3", auth: oauthClient() });
 }
 
+/** Jeton d'accès court (dérivé du refresh token) — pour ouvrir une session d'envoi Drive. */
+export async function accessToken(): Promise<string> {
+  const { token } = await oauthClient().getAccessToken();
+  if (!token) throw new AppError("Jeton d'accès Google indisponible.", 500);
+  return token;
+}
+
 export function requireConfigured() {
   if (!isConfigured()) {
     throw new AppError(

@@ -1,7 +1,8 @@
-// Dépôt d'un document dans le dossier Drive d'un lot.
+// Drive : dossier d'un lot + ouverture d'une session d'envoi « reprenable ».
+// Le fichier ne transite PAS par l'hébergeur (limite ~4,5 Mo) : le serveur ouvre
+// une session autorisée, le navigateur envoie ensuite les octets directement à Google.
 
-import { Readable } from "node:stream";
-import { driveClient, sheetsClient } from "./google";
+import { driveClient, sheetsClient, accessToken } from "./google";
 import { config } from "./config";
 import { readTab } from "./sheets";
 import { TAB } from "./types";
@@ -30,8 +31,7 @@ export async function ensureLotFolder(lotUuid: string): Promise<string> {
   const existing = String(rows[idx].DRIVE_FOLDER_ID ?? "").trim();
   if (existing) return existing;
 
-  const drive = driveClient();
-  const created = await drive.files.create({
+  const created = await driveClient().files.create({
     requestBody: {
       name: String(rows[idx].NOM ?? "Lot"),
       mimeType: "application/vnd.google-apps.folder",
@@ -53,24 +53,36 @@ export async function ensureLotFolder(lotUuid: string): Promise<string> {
   return folderId;
 }
 
-export type UploadResult = { fileId: string; url: string; name: string };
-
-/** Dépose un fichier dans le dossier du lot et renvoie son lien de consultation. */
-export async function uploadToLot(
+/**
+ * Ouvre une session d'envoi reprenable dans le dossier du lot et renvoie l'URI
+ * de session. Le navigateur enverra le fichier directement sur cette URI.
+ */
+export async function createUploadSession(
   lotUuid: string,
   fileName: string,
   mimeType: string,
-  data: Buffer,
-): Promise<UploadResult> {
+): Promise<string> {
   const folderId = await ensureLotFolder(lotUuid);
-  const res = await driveClient().files.create({
-    requestBody: { name: fileName, parents: [folderId] },
-    media: { mimeType: mimeType || "application/octet-stream", body: Readable.from(data) },
-    fields: "id, webViewLink, name",
-  });
-  return {
-    fileId: res.data.id as string,
-    url: (res.data.webViewLink as string) || "",
-    name: (res.data.name as string) || fileName,
-  };
+  const token = await accessToken();
+
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,webViewLink",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType || "application/octet-stream",
+      },
+      body: JSON.stringify({ name: fileName, parents: [folderId] }),
+    },
+  );
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Ouverture de la session d'envoi refusée (${res.status}). ${detail.slice(0, 120)}`);
+  }
+  const sessionUri = res.headers.get("location");
+  if (!sessionUri) throw new Error("Session d'envoi non obtenue de Google.");
+  return sessionUri;
 }

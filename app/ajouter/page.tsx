@@ -13,6 +13,16 @@ function num(s: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Lecture de réponse tolérante : si ce n'est pas du JSON (erreur d'hôte…), on renvoie le texte. */
+async function readJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text.slice(0, 200) || `Erreur ${res.status}` };
+  }
+}
+
 export default function AjouterPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [lots, setLots] = useState<LotOption[]>([]);
@@ -50,6 +60,11 @@ export default function AjouterPage() {
     [ttc, tauxRetenue],
   );
 
+  const clearFile = () => {
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   const canSubmit = configured === true && !!lotUuid && ttc > 0 && !submitting;
 
   const submit = useCallback(async () => {
@@ -59,14 +74,32 @@ export default function AjouterPage() {
     try {
       let driveUrl = "";
       if (file) {
-        const fd = new FormData();
-        fd.append("lotUuid", lotUuid);
-        fd.append("file", file);
-        const up = await fetch("/api/upload", { method: "POST", body: fd });
-        const upJson = await up.json();
-        if (!up.ok) throw new Error(upJson.error || "Le dépôt du fichier a échoué.");
-        driveUrl = upJson.upload?.url || "";
+        // 1) Le serveur ouvre une session d'envoi Drive (aucun octet ne passe par lui).
+        const init = await fetch("/api/upload-init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lotUuid,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+          }),
+        });
+        const initJson = await readJson(init);
+        if (!init.ok) throw new Error(String(initJson.error) || "L'envoi du fichier n'a pas pu démarrer.");
+
+        // 2) Le navigateur envoie le fichier directement à Google, sans limite de taille.
+        const put = await fetch(String(initJson.sessionUri), {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        });
+        if (!put.ok) throw new Error("L'envoi du fichier vers le Drive a échoué.");
+        const putJson = await readJson(put);
+        driveUrl =
+          (putJson.webViewLink as string) ||
+          (putJson.id ? `https://drive.google.com/file/d/${putJson.id}/view` : "");
       }
+
       const res = await fetch("/api/factures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,16 +112,18 @@ export default function AjouterPage() {
           driveUrl,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "L'enregistrement a échoué.");
-      setDone(`Facture ${json.facture.FACTURE_ID} enregistrée. Elle apparaît dans le lot.`);
+      const json = await readJson(res);
+      if (!res.ok) throw new Error(String(json.error) || "L'enregistrement a échoué.");
+
+      const fac = json.facture as { FACTURE_ID?: string } | undefined;
+      setDone(`Facture ${fac?.FACTURE_ID ?? ""} enregistrée. Elle apparaît dans le lot.`);
       setMontantTTC("");
-      setFile(null);
-      if (fileRef.current) fileRef.current.value = "";
+      clearFile();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setSubmitting(false);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [file, lotUuid, nature, ttc, tauxRetenue]);
 
@@ -116,6 +151,23 @@ export default function AjouterPage() {
           <b>Photographier</b>
           <span>{file ? file.name : "ou choisir un fichier"}</span>
         </label>
+        {file && (
+          <button
+            type="button"
+            onClick={clearFile}
+            style={{
+              background: "none",
+              border: 0,
+              color: "var(--accent)",
+              fontFamily: "inherit",
+              fontSize: "var(--fs-secondary)",
+              padding: "0 0 14px",
+              cursor: "pointer",
+            }}
+          >
+            Retirer le fichier
+          </button>
+        )}
 
         <label>C&apos;est quoi ?</label>
         <div className="choice">
