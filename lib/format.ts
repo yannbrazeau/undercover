@@ -37,3 +37,14 @@ export function norm(v: unknown): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
+
+/** Convertit une date ISO (AAAA-MM-JJ d'un champ <input type="date">) en JJ/MM/AAAA. */
+export function isoToFr(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso || "";
+}
+
+/** Date du jour au format JJ/MM/AAAA. */
+export function todayFr(): string {
+  return isoToFr(new Date().toISOString().slice(0, 10));
+}
