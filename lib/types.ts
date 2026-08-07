@@ -49,6 +49,7 @@ export type Devis = {
   DATE_SIGNATURE: string;
   REMPLACE: string; // DEVIS_ID de la version précédente (versionnage, jamais d'écrasement)
   ENTREPRISE_PREVENUE: string; // oui/non, une fois le devis écarté
+  DRIVE_URL: string; // le devis signé, joint au moment de la signature
   // Champs hérités — lus tant que le classeur n'est pas migré au nouveau modèle.
   RETENU?: string;
   SIGNE?: string;

@@ -1,5 +1,6 @@
 // Lecture et écriture du Google Sheet. Le classeur est la seule source de vérité.
 
+import { randomUUID } from "crypto";
 import { sheetsClient } from "./google";
 import { config } from "./config";
 import { norm, parseNum, euros } from "./format";
@@ -83,6 +84,7 @@ export async function getDevis(): Promise<Devis[]> {
     DATE_SIGNATURE: String(r.DATE_SIGNATURE ?? ""),
     REMPLACE: String(r.REMPLACE ?? ""),
     ENTREPRISE_PREVENUE: String(r.ENTREPRISE_PREVENUE ?? ""),
+    DRIVE_URL: String(r.DRIVE_URL ?? ""),
     RETENU: String(r.RETENU ?? ""),
     SIGNE: String(r.SIGNE ?? ""),
   }));
@@ -260,6 +262,49 @@ async function appendRow(tab: string, headers: string[], obj: Record<string, unk
   });
 }
 
+export type NewLot = {
+  nom: string;
+  budgetTTC?: number;
+  perimetre?: string;
+  responsable?: string;
+};
+
+/** Crée un nouveau lot — apparaît aussitôt dans les écrans Budget et Lots. */
+export async function creerLot(input: NewLot): Promise<Lot> {
+  const { headers } = await readTab(TAB.LOTS);
+  const lotUuid = randomUUID();
+
+  const lot: Lot = {
+    LOT_UUID: lotUuid,
+    NOM: input.nom,
+    BUDGET_TTC: input.budgetTTC ?? 0,
+    STATUT: "Non lancé",
+    RESPONSABLE: input.responsable || "",
+    DRIVE_FOLDER_ID: "",
+    ACTIF: "OUI",
+    DEBUT_PREVU: "",
+    FIN_PREVUE: "",
+    AVANCEMENT_PCT: 0,
+    PERIMETRE: input.perimetre || "",
+  };
+
+  await appendRow(TAB.LOTS, headers, {
+    LOT_UUID: lot.LOT_UUID,
+    NOM: lot.NOM,
+    BUDGET_TTC: input.budgetTTC ?? "",
+    STATUT: lot.STATUT,
+    RESPONSABLE: lot.RESPONSABLE,
+    DRIVE_FOLDER_ID: "",
+    ACTIF: lot.ACTIF,
+    DEBUT_PREVU: "",
+    FIN_PREVUE: "",
+    AVANCEMENT_PCT: 0,
+    PERIMETRE: lot.PERIMETRE,
+  });
+
+  return lot;
+}
+
 export type NewFacture = {
   lotUuid: string;
   nature: string;
@@ -435,6 +480,7 @@ export type SignDevisInput = {
   devisId: string;
   date: string; // JJ/MM/AAAA
   confirmerMalgreDecennale?: boolean;
+  driveUrl?: string; // le devis signé, joint au moment de la signature
 };
 
 export type SignDevisResult =
@@ -501,6 +547,7 @@ export async function signDevis(input: SignDevisInput): Promise<SignDevisResult>
   const headers = devisTable.headers;
   const statutCol = headers.indexOf("STATUT");
   const dateCol = headers.indexOf("DATE_SIGNATURE");
+  const driveUrlCol = headers.indexOf("DRIVE_URL");
   const sheetRow = idx + 2;
 
   await sheets.spreadsheets.values.update({
@@ -515,6 +562,14 @@ export async function signDevis(input: SignDevisInput): Promise<SignDevisResult>
       range: `${TAB.DEVIS}!${colLetter(dateCol)}${sheetRow}`,
       valueInputOption: "RAW",
       requestBody: { values: [[input.date]] },
+    });
+  }
+  if (driveUrlCol >= 0 && input.driveUrl) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.DEVIS}!${colLetter(driveUrlCol)}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[input.driveUrl]] },
     });
   }
 
@@ -536,6 +591,67 @@ export async function signDevis(input: SignDevisInput): Promise<SignDevisResult>
   }
 
   return { requiresConfirmation: false, devisId: input.devisId, lotUuid, ecartes };
+}
+
+export type ChoisirDevisResult = {
+  devisId: string;
+  lotUuid: string;
+  ecartes: { devisId: string; entreprise: string }[];
+};
+
+// Un devis « reçu » ou « à corriger » peut être retenu — l'arbitrage, avant l'engagement.
+const STATUTS_ELIGIBLES_CHOIX = [STATUT_DEVIS.RECU, STATUT_DEVIS.A_CORRIGER].map(norm);
+// Choisir un devis écarte les autres candidats du même lot — un seul retenu à la fois,
+// pour que le scénario budgétaire ne compte jamais deux devis concurrents du même lot.
+const STATUTS_A_ECARTER_AU_CHOIX = [...STATUTS_ELIGIBLES_CHOIX, norm(STATUT_DEVIS.RETENU)];
+
+/**
+ * Retient un devis parmi ceux reçus pour un lot — comparer, puis choisir, avant de
+ * signer. Compte aussitôt dans le scénario budgétaire (voir devisCompteScenario),
+ * sans encore engager le lot : c'est signDevis qui engage. Aucun contrôle de
+ * décennale ici, il n'intervient qu'à la signature.
+ */
+export async function choisirDevis(devisId: string): Promise<ChoisirDevisResult> {
+  const devisTable = await readTab(TAB.DEVIS);
+  const idx = devisTable.rows.findIndex((r) => String(r.DEVIS_ID ?? "") === devisId);
+  if (idx < 0) throw new Error("Devis introuvable.");
+
+  const row = devisTable.rows[idx];
+  const currentStatut = norm(String(row.STATUT ?? ""));
+  if (!STATUTS_ELIGIBLES_CHOIX.includes(currentStatut)) {
+    throw new Error(`Ce devis n'est plus disponible au choix (statut actuel : ${row.STATUT}).`);
+  }
+
+  const lotUuid = String(row.LOT_UUID ?? "");
+  const sheets = sheetsClient();
+  const headers = devisTable.headers;
+  const statutCol = headers.indexOf("STATUT");
+  const sheetRow = idx + 2;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config().spreadsheetId,
+    range: `${TAB.DEVIS}!${colLetter(statutCol)}${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[STATUT_DEVIS.RETENU]] },
+  });
+
+  const ecartes: { devisId: string; entreprise: string }[] = [];
+  for (let i = 0; i < devisTable.rows.length; i++) {
+    if (i === idx) continue;
+    const r = devisTable.rows[i];
+    if (String(r.LOT_UUID ?? "") !== lotUuid) continue;
+    if (!STATUTS_A_ECARTER_AU_CHOIX.includes(norm(String(r.STATUT ?? "")))) continue;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.DEVIS}!${colLetter(statutCol)}${i + 2}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[STATUT_DEVIS.ECARTE]] },
+    });
+    ecartes.push({ devisId: String(r.DEVIS_ID ?? ""), entreprise: String(r.ENTREPRISE ?? "") });
+  }
+
+  return { devisId, lotUuid, ecartes };
 }
 
 export type LotPlanningInput = {

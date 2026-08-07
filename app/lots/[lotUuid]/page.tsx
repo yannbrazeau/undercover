@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
+import { envoyerDocument } from "@/lib/upload";
 
 type DevisItem = {
   id: string;
@@ -12,9 +13,11 @@ type DevisItem = {
   ttc: number;
   statut: string;
   dateSignature: string;
+  driveUrl: string;
   decennale: string;
   entreprisePrevenue: boolean;
   eligibleSignature: boolean;
+  eligibleChoix: boolean;
 };
 
 type FactureItem = {
@@ -66,7 +69,7 @@ function frToIso(fr: string): string {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
 }
 
-type Confirmation = { devisId: string; entreprise: string; etatDecennale: string } | null;
+type Confirmation = { devisId: string; entreprise: string; etatDecennale: string; driveUrl: string } | null;
 
 export default function FicheLotPage() {
   const params = useParams<{ lotUuid: string }>();
@@ -89,6 +92,9 @@ export default function FicheLotPage() {
 
   const [confirmerSuppression, setConfirmerSuppression] = useState(false);
   const [suppression, setSuppression] = useState(false);
+
+  const [fichiersSignature, setFichiersSignature] = useState<Record<string, File | null>>({});
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
   const charger = useCallback(() => {
     fetch(`/api/lots/${lotUuid}`, { cache: "no-store" })
@@ -114,28 +120,69 @@ export default function FicheLotPage() {
   }, [charger]);
 
   const signer = useCallback(
-    async (devisId: string, confirmerMalgreDecennale = false) => {
+    async (devisId: string, confirmerMalgreDecennale = false, driveUrlDejaEnvoye?: string) => {
       setError("");
       setMessage("");
       setBusyId(devisId);
       try {
+        let driveUrl = driveUrlDejaEnvoye ?? "";
+        const fichier = fichiersSignature[devisId];
+        if (driveUrlDejaEnvoye === undefined && fichier) {
+          setEnvoiEnCours(true);
+          try {
+            driveUrl = await envoyerDocument(lotUuid, fichier);
+          } finally {
+            setEnvoiEnCours(false);
+          }
+        }
+
         const res = await fetch("/api/devis/signer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devisId, confirmerMalgreDecennale }),
+          body: JSON.stringify({ devisId, confirmerMalgreDecennale, driveUrl }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "La signature a échoué.");
 
         if (json.requiresConfirmation) {
-          setConfirmation({ devisId, entreprise: json.entreprise, etatDecennale: json.etatDecennale });
+          setConfirmation({ devisId, entreprise: json.entreprise, etatDecennale: json.etatDecennale, driveUrl });
           return;
         }
 
         setConfirmation(null);
+        setFichiersSignature((prev) => ({ ...prev, [devisId]: null }));
         const nb = (json.ecartes ?? []).length;
         setMessage(
-          `Devis ${devisId} signé.` +
+          `Devis ${devisId} signé${driveUrl ? ", document joint" : ""}.` +
+            (nb > 0 ? ` ${nb} entreprise${nb > 1 ? "s" : ""} non retenue${nb > 1 ? "s" : ""} à prévenir.` : ""),
+        );
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [charger, lotUuid, fichiersSignature],
+  );
+
+  const choisir = useCallback(
+    async (devisId: string) => {
+      setError("");
+      setMessage("");
+      setBusyId(devisId);
+      try {
+        const res = await fetch("/api/devis/choisir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ devisId }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Le choix a échoué.");
+
+        const nb = (json.ecartes ?? []).length;
+        setMessage(
+          `Devis ${devisId} retenu.` +
             (nb > 0 ? ` ${nb} entreprise${nb > 1 ? "s" : ""} non retenue${nb > 1 ? "s" : ""} à prévenir.` : ""),
         );
         charger();
@@ -262,6 +309,12 @@ export default function FicheLotPage() {
 
             <div className="card">
               <h4>Devis</h4>
+              {fiche.devis.length > 1 && (
+                <p className="lead">
+                  Compare les montants et l&apos;écart au budget du lot, choisis celui qui te
+                  convainc, puis signe-le quand tu es prêt à t&apos;engager.
+                </p>
+              )}
               {fiche.devis.length === 0 && <p className="sub">Aucun devis reçu pour ce lot.</p>}
               {fiche.devis.map((d) => {
                 const ecart = d.ttc - fiche.lot.budget;
@@ -269,7 +322,8 @@ export default function FicheLotPage() {
                 return (
                   <div className="item" key={d.id}>
                     <div className="t">
-                      <span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="avatar">{(d.entreprise.trim()[0] || "?").toUpperCase()}</span>
                         {d.entreprise} <span className="sub">— {d.id}</span>
                       </span>
                       <span className="num">{euros(d.ttc)}</span>
@@ -283,17 +337,55 @@ export default function FicheLotPage() {
                         {ecart > 0 ? "+" : ""}
                         {euros(ecart)} vs budget du lot
                       </span>
+                      {d.driveUrl && (
+                        <>
+                          {" · "}
+                          <a href={d.driveUrl} target="_blank" rel="noreferrer">
+                            devis signé
+                          </a>
+                        </>
+                      )}
                     </div>
 
-                    {d.eligibleSignature && !estEnConfirmation && (
+                    {d.eligibleChoix && !estEnConfirmation && (
                       <button
                         className="btn sec"
                         style={{ marginTop: 8 }}
                         disabled={busyId === d.id}
-                        onClick={() => signer(d.id)}
+                        onClick={() => choisir(d.id)}
                       >
-                        {busyId === d.id ? "Signature…" : "Signer ce devis"}
+                        {busyId === d.id ? "Choix…" : "Choisir ce devis"}
                       </button>
+                    )}
+
+                    {d.eligibleSignature && !estEnConfirmation && (
+                      <>
+                        <label className="lead" style={{ display: "block", cursor: "pointer", marginTop: 8, marginBottom: 0 }}>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            hidden
+                            onChange={(e) =>
+                              setFichiersSignature((prev) => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))
+                            }
+                          />
+                          {fichiersSignature[d.id]
+                            ? `Document joint : ${fichiersSignature[d.id]!.name}`
+                            : "Joindre le devis signé (PDF ou photo) — optionnel"}
+                        </label>
+                        <button
+                          className="btn sec"
+                          style={{ marginTop: 8 }}
+                          disabled={busyId === d.id}
+                          onClick={() => signer(d.id)}
+                        >
+                          {busyId === d.id
+                            ? envoiEnCours
+                              ? "Envoi du document…"
+                              : "Signature…"
+                            : "Signer ce devis"}
+                        </button>
+                      </>
                     )}
 
                     {estEnConfirmation && (
@@ -304,7 +396,7 @@ export default function FicheLotPage() {
                         Signer quand même ?
                         <div className="choice" style={{ marginTop: 10, marginBottom: 0 }}>
                           <span onClick={() => setConfirmation(null)}>Annuler</span>
-                          <span className="on" onClick={() => signer(d.id, true)}>
+                          <span className="on" onClick={() => signer(d.id, true, confirmation.driveUrl)}>
                             Signer quand même
                           </span>
                         </div>

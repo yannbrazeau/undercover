@@ -19,6 +19,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const STATUTS_ELIGIBLES_SIGNATURE = ["reçu", "à corriger", "retenu"].map(norm);
+const STATUTS_ELIGIBLES_CHOIX = ["reçu", "à corriger"].map(norm);
 
 export async function GET(req: Request, { params }: { params: Promise<{ lotUuid: string }> }) {
   try {
@@ -54,9 +55,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
           ttc: d.TTC,
           statut: d.STATUT,
           dateSignature: d.DATE_SIGNATURE,
+          driveUrl: d.DRIVE_URL,
           decennale,
           entreprisePrevenue: norm(d.ENTREPRISE_PREVENUE) === "oui",
           eligibleSignature: STATUTS_ELIGIBLES_SIGNATURE.includes(norm(d.STATUT)),
+          eligibleChoix: STATUTS_ELIGIBLES_CHOIX.includes(norm(d.STATUT)),
         };
       });
 
