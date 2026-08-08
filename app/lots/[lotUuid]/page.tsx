@@ -381,7 +381,11 @@ export default function FicheLotPage() {
                   {d.eligibleSignature && d.decennale !== "valide" && !estEnConfirmation && (
                     <div className="note warn">
                       <span className="dot warn" />
-                      <p>Décennale {d.decennale} — à réclamer avant de signer</p>
+                      <p>
+                        {d.decennale === "à réclamer"
+                          ? "Décennale à réclamer avant de signer"
+                          : `Décennale ${d.decennale} — à réclamer avant de signer`}
+                      </p>
                     </div>
                   )}
 

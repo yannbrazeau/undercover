@@ -20,3 +20,9 @@ npm-debug.log*
 # typescript
 next-env.d.ts
 *.tsbuildinfo
+
+# Playwright — rapports et artefacts d'exécution (pas les captures de
+# référence, versionnées dans tests/ecrans.spec.ts-snapshots/)
+/playwright-report
+/test-results
+/blob-report

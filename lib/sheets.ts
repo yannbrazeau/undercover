@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { sheetsClient } from "./google";
-import { config } from "./config";
+import { config, isFixtureMode } from "./config";
 import { norm, parseNum, euros } from "./format";
 import { computeFacture, nextId, round2 } from "./facture";
 import { etatDecennale } from "./decennale";
@@ -17,6 +17,15 @@ import {
   type Paiement,
   type ProjetParams,
 } from "./types";
+import {
+  FIXTURE_LOTS,
+  FIXTURE_DEVIS,
+  FIXTURE_AVENANTS,
+  FIXTURE_FACTURES,
+  FIXTURE_PAIEMENTS,
+  FIXTURE_ENTREPRISES,
+  FIXTURE_PROJET,
+} from "./fixtures";
 
 function colLetter(index0: number): string {
   let n = index0 + 1;
@@ -31,8 +40,29 @@ function colLetter(index0: number): string {
 
 type Table = { headers: string[]; rows: Record<string, unknown>[] };
 
+/**
+ * En mode fixtures (PILOTAGE_FIXTURES=1), les onglets sont servis depuis les
+ * données de référence du chantier réel plutôt que depuis Google Sheets —
+ * ce qui permet de figer les sept écrans pour les captures Playwright (§12)
+ * sans connexion. Aucune écriture n'est prise en charge dans ce mode.
+ */
+function fixtureTab(tab: string): Table {
+  const rows: Record<string, Record<string, unknown>[]> = {
+    [TAB.LOTS]: FIXTURE_LOTS as unknown as Record<string, unknown>[],
+    [TAB.DEVIS]: FIXTURE_DEVIS as unknown as Record<string, unknown>[],
+    [TAB.AVENANTS]: FIXTURE_AVENANTS as unknown as Record<string, unknown>[],
+    [TAB.FACTURES]: FIXTURE_FACTURES as unknown as Record<string, unknown>[],
+    [TAB.PAIEMENTS]: FIXTURE_PAIEMENTS as unknown as Record<string, unknown>[],
+    [TAB.ENTREPRISES]: FIXTURE_ENTREPRISES as unknown as Record<string, unknown>[],
+    [TAB.PROJET]: Object.entries(FIXTURE_PROJET).map(([CLE, VALEUR]) => ({ CLE, VALEUR })),
+  };
+  return { headers: [], rows: rows[tab] ?? [] };
+}
+
 /** Lit un onglet entier et le transforme en objets (clé = en-tête de colonne). */
 export async function readTab(tab: string): Promise<Table> {
+  if (isFixtureMode()) return fixtureTab(tab);
+
   const sheets = sheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: config().spreadsheetId,

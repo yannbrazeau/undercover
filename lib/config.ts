@@ -33,6 +33,16 @@ export function configStatus(): Record<string, boolean> {
 
 /** Vrai si l'appli a tout ce qu'il faut pour parler à Google. */
 export function isConfigured(): boolean {
+  if (isFixtureMode()) return true;
   const c = config();
   return Boolean(c.clientId && c.clientSecret && c.refreshToken && c.spreadsheetId);
+}
+
+/**
+ * Mode fixtures : les écrans se servent des données de référence du chantier
+ * réel (lib/fixtures.ts) au lieu de Google Sheets — réservé aux captures
+ * Playwright (§12 du cahier), jamais activé en production.
+ */
+export function isFixtureMode(): boolean {
+  return process.env.PILOTAGE_FIXTURES === "1";
 }
