@@ -13,23 +13,93 @@ import {
   engageLot,
   factureCumulLot,
 } from "@/lib/sheets";
-import { depensePrevueLot, computeBudget } from "@/lib/budget";
+import { computeBudget } from "@/lib/budget";
 import { round2 } from "@/lib/facture";
-import { norm } from "@/lib/format";
+import { norm, euros } from "@/lib/format";
+import type { Devis } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Etat = "aucun devis" | "à choisir" | "en cours" | "terminé";
+type Etat = "dépassement" | "sous le budget" | "signé" | "expirés" | "à choisir" | "budget estimé";
+type Tonalite = "danger" | "warn" | "ok" | "mute";
 
-// « En cours » ne veut dire qu'une chose : un devis est signé, le chantier
-// est engagé sur ce lot. Un devis simplement retenu reste « à choisir » —
-// la décision finale (signer) n'est pas encore prise. Sans ça, « en cours »
-// s'affichait sur presque tous les lots et ne distinguait plus rien.
-function etatLot(nbDevis: number, signe: boolean, avancementPct: number): Etat {
-  if (nbDevis === 0) return "aucun devis";
-  if (signe) return avancementPct >= 100 ? "terminé" : "en cours";
-  return "à choisir";
+const STATUTS_HORS_SCENARIO = new Set(["remplace", "annexe"]);
+
+/**
+ * L'état d'un lot, dans l'ordre où il compte pour la décision : un devis
+ * signé écarté du budget (dépassement ou marge), sinon la situation des
+ * devis en lice, sinon le budget seul. Chaque état porte son propre libellé
+ * de montant (`aLabel`) — jamais un « 0 € » qui ne voudrait rien dire.
+ */
+function calculerEtatLot(devisDuLot: Devis[], engage: number, budgetLot: number) {
+  const actifs = devisDuLot.filter((d) => !STATUTS_HORS_SCENARIO.has(norm(d.STATUT)));
+  const signe = actifs.find(devisEngage);
+
+  if (signe) {
+    const ecart = budgetLot > 0 ? round2(engage - budgetLot) : null;
+    if (ecart !== null && ecart > 0.01) {
+      return { etat: "dépassement" as Etat, tonalite: "danger" as Tonalite, aLabel: `+${euros(ecart)}`, aTonalite: "danger" as Tonalite };
+    }
+    if (ecart !== null && ecart < -0.01) {
+      return { etat: "sous le budget" as Etat, tonalite: "ok" as Tonalite, aLabel: euros(ecart), aTonalite: "ok" as Tonalite };
+    }
+    return {
+      etat: "signé" as Etat,
+      tonalite: "ok" as Tonalite,
+      aLabel: euros(budgetLot > 0 ? budgetLot : engage),
+      aTonalite: "mute" as Tonalite,
+    };
+  }
+
+  const expires = actifs.filter((d) => norm(d.STATUT) === "expire");
+  if (actifs.length > 0 && expires.length === actifs.length) {
+    return {
+      etat: "expirés" as Etat,
+      tonalite: "warn" as Tonalite,
+      aLabel: `${actifs.length} devis`,
+      aTonalite: "mute" as Tonalite,
+    };
+  }
+  if (actifs.length > 0) {
+    return {
+      etat: "à choisir" as Etat,
+      tonalite: "warn" as Tonalite,
+      aLabel: `${actifs.length} devis`,
+      aTonalite: "mute" as Tonalite,
+    };
+  }
+  return {
+    etat: "budget estimé" as Etat,
+    tonalite: "mute" as Tonalite,
+    aLabel: budgetLot > 0 ? euros(budgetLot) : "budget non renseigné",
+    aTonalite: "mute" as Tonalite,
+  };
+}
+
+/** La deuxième ligne d'un lot : qui l'exécute et ce qui a été facturé, ou à
+ * défaut ce qu'il reste à trancher — jamais une ligne vide. */
+function calculerSousLigne(etat: Etat, devisDuLot: Devis[], entreprise: string, facture: number) {
+  if (etat === "dépassement" || etat === "sous le budget" || etat === "signé") {
+    const primaire = entreprise || "Entreprise non renseignée";
+    const secondaire = facture > 0.01 ? `${euros(facture)} facturés` : null;
+    return { primaire, secondaire };
+  }
+  if (etat === "expirés") {
+    const expire = devisDuLot.find((d) => norm(d.STATUT) === "expire");
+    return { primaire: expire?.ENTREPRISE || "Entreprise non renseignée", secondaire: null };
+  }
+  if (etat === "à choisir") {
+    const actifs = devisDuLot.filter((d) => !STATUTS_HORS_SCENARIO.has(norm(d.STATUT)));
+    const montants = actifs.map((d) => d.TTC).sort((a, b) => a - b);
+    if (montants.length > 1) {
+      return { primaire: `${euros(montants[0])} à ${euros(montants[montants.length - 1])}`, secondaire: null };
+    }
+    if (montants.length === 1) {
+      return { primaire: euros(montants[0]), secondaire: null };
+    }
+  }
+  return { primaire: "Aucun devis reçu", secondaire: null };
 }
 
 // Barre fixe de dépense prévue + une ligne par lot pour l'écran Lots (vue
@@ -62,12 +132,10 @@ export async function GET() {
       const facture = factureCumulLot(lot.LOT_UUID, factures);
       const facturesDuLot = factures.filter((f) => f.LOT_UUID === lot.LOT_UUID);
       const paye = round2(facturesDuLot.reduce((s, f) => s + (payeParFacture.get(f.FACTURE_ID) ?? 0), 0));
-
-      const depense = depensePrevueLot(lot, devis, avenants);
-      const ecartBudget = round2(depense.montant - lot.BUDGET_TTC);
       const entreprise = resolveEntrepriseForLot(lot.LOT_UUID, devis).nom;
 
-      const etat = etatLot(devisDuLot.length, devisDuLot.some(devisEngage), lot.AVANCEMENT_PCT);
+      const { etat, tonalite, aLabel, aTonalite } = calculerEtatLot(devisDuLot, engage, lot.BUDGET_TTC);
+      const { primaire: l2Primaire, secondaire: l2Secondaire } = calculerSousLigne(etat, devisDuLot, entreprise, facture);
 
       return {
         lotUuid: lot.LOT_UUID,
@@ -77,10 +145,14 @@ export async function GET() {
         engage,
         facture,
         paye,
-        ecartBudget,
         entreprise,
         nbDevis: devisDuLot.length,
         etat,
+        etatTonalite: tonalite,
+        aLabel,
+        aTonalite,
+        l2Primaire,
+        l2Secondaire,
         debutPrevu: lot.DEBUT_PREVU,
         finPrevue: lot.FIN_PREVUE,
         avancementPct: lot.AVANCEMENT_PCT,

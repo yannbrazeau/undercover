@@ -1,29 +1,36 @@
-/* tokens.css — direction « Graphite », fixée au cahier de conception §2.
-   Seule déclaration de couleurs, de police et de tailles. Aucune valeur
-   hexadécimale ne doit apparaître ailleurs. Intégralement en mode clair :
-   pas de bandeau sombre, l'accent reste la seule couleur franche. */
+/* tokens.css — direction « Jour », reprise à l'identique de MAQUETTES-ECRANS.html
+   (dépôt de travail, 8 août 2026). Seule déclaration de couleurs, de police
+   et de tailles. Aucune valeur hexadécimale ne doit apparaître ailleurs. */
 
 :root {
-  --dark: #27272a; /* réservé aux rares aplats fonciers, plus le bandeau d'en-tête */
-  --ink: #18181b; /* texte courant */
-  --muted: #71717a; /* texte secondaire */
-  --faint: #a1a1aa; /* sur-intitulés, mentions discrètes */
-  --line: #e4e4e7; /* filets de carte */
-  --line-strong: #d4d4d8; /* bordure de champ, plus marquée qu'un simple filet */
-  --bg: #f7f7f8; /* fond de page */
-  --surface: #ffffff; /* cartes */
-  --accent: #3f6ea8; /* action principale, liens, barres — éteint volontairement */
-  --accent-press: #33587f; /* état pressé/actif d'un élément accentué */
-  --accent-soft: #eef3f8; /* fonds de blocs informatifs */
-  --danger: #a13c3c; /* dépassement, alerte — désaturé à dessein, un constat pas un cri */
-  --danger-soft: #f9eeee;
-  --warn: #7a6234; /* attention, en attente — désaturé */
-  --warn-soft: #f6f1e6;
-  --ok: #2f6b4f; /* montant favorable */
-  --ok-soft: #eaf3ee;
+  --canvas: #f4f5f8;
+  --surface: #ffffff;
+  --ink: #1a1d26;
+  --ink-2: #767d8c;
+  --ink-3: #9aa1af;
+  --line: #e2e5eb;
 
-  /* Ombres rares et neutres : par défaut, aucune, un filet suffit à séparer. */
-  --shadow: none;
+  --accent: #e0714a;
+  --accent-press: #c85f3b;
+  --accent-soft: #fdefe9;
+  --danger: #c25037;
+  --danger-soft: #fbe9e5;
+  --warn: #b5862f;
+  --warn-soft: #f8f1e2;
+  --ok: #2f7a55;
+  --ok-soft: #e8f2ec;
+
+  --r: 16px;
+  --sh: 0 1px 2px rgba(20, 24, 40, 0.04), 0 4px 14px rgba(20, 24, 40, 0.06);
+  --sh2: 0 2px 6px rgba(20, 24, 40, 0.05), 0 12px 32px rgba(20, 24, 40, 0.12);
+  --shBtn: 0 2px 5px rgba(200, 95, 59, 0.28), 0 8px 20px rgba(200, 95, 59, 0.2);
+
+  /* Compat — anciens noms de jetons encore référencés par quelques classes. */
+  --bg: var(--canvas);
+  --muted: var(--ink-2);
+  --faint: var(--ink-3);
+  --dark: var(--ink);
+  --line-strong: var(--line);
 
   /* Police unique, sans-serif du système — aucun chargement */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -41,10 +48,14 @@
   --w-bold: 600;
 
   --lh: 1.5;
-  --radius: 12px;
-  --radius-lg: 16px;
+  --radius: var(--r);
+  --radius-lg: 20px;
   --radius-pill: 999px;
   --maxw: 760px;
   --nav-h: 62px;
   --pad: 16px;
+
+  /* La photo du chantier — chargée une seule fois, réutilisée par les huit
+     bandeaux (héros Budget, halo des six autres écrans). */
+  --photo: url("/maison-bandeau.webp");
 }

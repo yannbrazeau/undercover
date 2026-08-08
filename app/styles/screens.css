@@ -1,83 +1,206 @@
-/* screens.css — spécificités des écrans. S'étoffe écran par écran. */
+/* screens.css — spécificités des écrans : bandeaux photo, listes d'action,
+   états vides, chronologie, tuiles. */
 
-/* Barre de dépense prévue, fixe en haut de l'écran Lots — claire, séparée
-   du contenu par un filet, jamais un bandeau sombre. */
-.sticky {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* Héros de l'écran Budget : la photo nette, un voile, le titre en blanc. */
+.hero {
+  position: relative;
+  height: 158px;
+}
+.hero .pic {
+  position: absolute;
+  inset: 0;
+  background: var(--photo) center 42% / cover;
+}
+.hero .veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(16, 20, 32, 0.66), rgba(16, 20, 32, 0.02));
+}
+.hero .heroTxt {
+  position: absolute;
+  left: 18px;
+  bottom: 13px;
+}
+.hero .heroTxt .eb {
+  font-size: 12px;
+  color: #ffd9c9;
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.hero .heroTxt h1 {
+  font-size: 23px;
+  color: #fff;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+/* En-tête des six autres écrans : la même photo, floutée et adoucie sous
+   un voile clair — c'est ce halo qui donne son identité à l'application. */
+.head {
+  position: relative;
+  padding: 20px 16px 18px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.head .glow {
+  position: absolute;
+  inset: -40px;
+  background: var(--photo) center 34% / cover;
+  filter: blur(26px) saturate(1.25);
+  opacity: 0.62;
+  z-index: -2;
+}
+.head::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.86) 62%, var(--canvas));
+  z-index: -1;
+}
+.headTxt {
+  position: relative;
+}
+.head .sub {
+  font-size: 13px;
+  color: #5f6674;
+  margin: 0 0 2px;
+  font-weight: 500;
+}
+.head h1 {
+  font-size: 25px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.lift {
+  padding: 0 16px;
+  margin-top: -30px;
+  position: relative;
+}
+.pad {
+  padding: 0 16px;
+}
+.pad.top {
+  padding-top: 14px;
+}
+
+/* Barre de dépense prévue, sous l'en-tête de l'écran Lots. */
+.strip {
   background: var(--surface);
-  color: var(--ink);
-  border-bottom: 1px solid var(--line);
   padding: 11px 16px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  border-bottom: 0.5px solid var(--line);
 }
-.sticky .l {
-  font-size: var(--fs-secondary);
-  color: var(--muted);
+.strip .k {
+  font-size: 12.5px;
+  color: var(--ink-2);
 }
-.sticky .r {
-  font-size: 20px;
-  font-weight: var(--w-bold);
+.strip .v {
+  font-size: 17px;
+  font-weight: 600;
 }
 
 /* Sélecteur de vue (Liste / Chronologie) */
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 18px;
+  border-bottom: 0.5px solid var(--line);
   margin-bottom: 12px;
 }
 .tabs span {
-  font-size: var(--fs-secondary);
-  padding: 7px 14px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--muted);
+  font-size: 13.5px;
+  color: var(--ink-3);
+  padding-bottom: 8px;
+  cursor: pointer;
 }
 .tabs span.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
   color: var(--accent);
-  font-weight: var(--w-bold);
+  font-weight: 600;
+  border-bottom: 2px solid var(--accent);
+}
+
+.search {
+  width: 100%;
+  background: #fff;
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 6px;
+  box-shadow: inset 0 1px 2px rgba(20, 24, 40, 0.03);
+  font-family: inherit;
+}
+.search::placeholder {
+  color: var(--ink-3);
 }
 
 /* Ligne d'un lot dans une liste */
-.item {
-  padding: 11px 0;
-  border-bottom: 1px solid var(--line);
+.lot {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  padding: 11px 2px;
+  border-bottom: 0.5px solid var(--line);
 }
-.item:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
+.lot:last-child {
+  border: 0;
 }
-.item .t {
+.l1 {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
-  font-size: var(--fs-body);
 }
-.item .m {
-  font-size: var(--fs-secondary);
-  color: var(--muted);
-  margin-top: 3px;
+.l1 .n {
+  font-size: 15px;
+  font-weight: 600;
+}
+.l1 .a {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.l2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.st {
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
-/* Barre de progression */
-.bar {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--line);
+/* Barre de progression — pleine (.bar) ou segmentée à plusieurs teintes (.seg). */
+.bar,
+.seg {
+  height: 6px;
+  border-radius: 3px;
   overflow: hidden;
   display: flex;
-  margin: 12px 0 10px;
+  margin: 15px 0 8px;
 }
-.bar i {
+.bar {
+  background: var(--line);
+}
+.seg {
+  gap: 3px;
+}
+.bar.thin,
+.seg.thin {
+  height: 4px;
+  margin: 8px 0 0;
+}
+.bar i,
+.seg i {
   display: block;
   height: 100%;
+  border-radius: 3px;
   background: var(--accent);
 }
 .bar i.light {
@@ -86,104 +209,340 @@
 .bar.over i {
   background: var(--danger);
 }
-
-/* Légende chiffrée sous une barre */
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  color: var(--ink-2);
 }
-.legend span {
-  font-size: var(--fs-secondary);
-  color: var(--muted);
+.legend .dotline {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.legend .dot {
-  width: 9px;
-  height: 9px;
+.legend .swatch {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent);
   flex: 0 0 auto;
 }
-.legend .dot.light {
-  opacity: 0.4;
+
+/* Rangées d'action — un pavé d'icône teinté, titre + sous-titre, chevron. */
+.acts {
+  background: linear-gradient(180deg, #fff, #fcfdfe);
+  border: 0.5px solid rgba(226, 229, 235, 0.8);
+  border-radius: var(--r);
+  box-shadow: var(--sh), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  margin-bottom: 11px;
 }
-.legend .dot.track {
-  background: var(--line);
+.act {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 14px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.act + .act {
+  border-top: 0.5px solid var(--line);
+}
+.act .ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.act .ic svg {
+  width: 18px;
+  height: 18px;
+}
+.ic.accent {
+  background: linear-gradient(180deg, #fdece5, #fbdfd4);
+  color: var(--accent-press);
+}
+.ic.warn {
+  background: linear-gradient(180deg, #f9f1de, #f4e8ca);
+  color: var(--warn);
+}
+.ic.ok {
+  background: linear-gradient(180deg, #e9f3ed, #dcece3);
+  color: var(--ok);
+}
+.ic.neutral {
+  background: linear-gradient(180deg, #eef0f4, #e5e8ee);
+  color: #5f6674;
+}
+.act > div {
+  flex: 1;
+  min-width: 0;
+}
+.act .t {
+  font-size: 14.5px;
+  font-weight: 600;
+  margin: 0;
+}
+.act .m {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 1px 0 0;
+}
+.act .chev {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+  flex: 0 0 auto;
 }
 
-/* Écran Ajouter : dépôt de fichier + chips de choix */
-.drop {
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  text-align: center;
-  padding: 22px 10px;
-  margin-bottom: 14px;
-}
-.drop b {
-  display: block;
-  font-size: var(--fs-body);
-  font-weight: var(--w-bold);
-  color: var(--accent);
-  margin-bottom: 3px;
-}
-.drop span {
-  font-size: var(--fs-secondary);
-  color: var(--muted);
-}
-.choice {
+/* Une chose à faire — un point de couleur, un titre, un pourquoi. */
+.task {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 11px;
+  align-items: flex-start;
+  background: linear-gradient(180deg, #fff, #fdfdfe);
+  border: 0.5px solid rgba(226, 229, 235, 0.7);
+  border-radius: 13px;
+  padding: 13px 14px;
+  margin-bottom: 9px;
+  box-shadow: var(--sh);
 }
-.choice span {
-  flex: 1;
+.task .t {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+}
+.task .m {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 2px 0 0;
+}
+
+/* État vide — une icône dans un cercle blanc en relief, jamais une case vide. */
+.empty {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  background: linear-gradient(180deg, #fbfcfe, #f6f8fb);
+  border: 0.5px solid rgba(226, 229, 235, 0.75);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 11px;
+}
+.empty .round {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink-3);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(20, 24, 40, 0.07);
+}
+.empty .round svg {
+  width: 18px;
+  height: 18px;
+}
+.empty .t {
+  font-size: 14.5px;
+  font-weight: 600;
+  margin: 0;
+}
+.empty .m {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+
+/* Écran Ajouter : dépôt de fichier + tuiles de choix */
+.drop {
+  border: 1.5px dashed #e0b6a4;
+  border-radius: var(--r);
+  background: linear-gradient(180deg, #fffaf8, #fff);
   text-align: center;
-  font-size: var(--fs-secondary);
-  padding: 10px 0;
-  border-radius: 10px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  color: var(--muted);
+  padding: 24px 12px;
+  margin-bottom: 18px;
+  box-shadow: var(--sh);
+  cursor: pointer;
+  display: block;
 }
-.choice span.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.drop .ic {
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin: 0 auto 7px;
   color: var(--accent);
-  font-weight: var(--w-bold);
+}
+.drop .t {
+  font-size: 15.5px;
+  font-weight: 600;
+  margin: 0;
+}
+.drop .m {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 2px 0 0;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-bottom: 18px;
+}
+.tiles span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 13px 4px 11px;
+  border-radius: 13px;
+  color: var(--ink-2);
+  background: linear-gradient(180deg, #fff, #fbfcfd);
+  border: 0.5px solid var(--line);
+  box-shadow: var(--sh);
+  cursor: pointer;
+}
+.tiles span i {
+  width: 21px;
+  height: 21px;
+  color: var(--ink-3);
+  display: block;
+}
+.tiles span i svg {
+  width: 100%;
+  height: 100%;
+}
+.tiles span.on {
+  background: linear-gradient(180deg, #fff6f2, #fdece5);
+  border-color: #f2c3b0;
+  color: var(--accent-press);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(200, 95, 59, 0.1), 0 6px 16px rgba(200, 95, 59, 0.14);
+}
+.tiles span.on i {
+  color: var(--accent);
+}
+
+/* Champ avec calcul affiché à droite (retenue de garantie). */
+.field.calcField {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.field .calc {
+  color: var(--ink-2);
+  font-size: 13px;
 }
 
 /* Cases à cocher (réserves, assurances) */
 .check {
   display: flex;
-  gap: 10px;
+  gap: 11px;
   align-items: flex-start;
   padding: 9px 0;
-  border-bottom: 1px solid var(--line);
   font-size: var(--fs-secondary);
 }
-.check:last-child {
-  border-bottom: 0;
+.check + .check {
+  border-top: 0.5px solid var(--line);
+}
+.check .t {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+}
+.check .m {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 2px 0 0;
+}
+.check.done .t {
+  color: var(--ink-3);
+  text-decoration: line-through;
 }
 .box {
-  width: 17px;
-  height: 17px;
-  border: 1px solid var(--faint);
-  border-radius: 4px;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid #c8cdd7;
+  border-radius: 6px;
   flex: 0 0 auto;
-  margin-top: 2px;
-  background: var(--surface);
+  margin-top: 1px;
+  background: #fff;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  line-height: 17px;
 }
 .box.on {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--ok);
+  border-color: var(--ok);
 }
 
-/* Liste des variables de configuration (Réglages) */
+/* Chronologie */
+.tl {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
+}
+.tl:not(.last)::before {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 14px;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--line);
+}
+.pt {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex: 0 0 auto;
+  margin-top: 4px;
+  z-index: 1;
+}
+.pt.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.pt.warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 4px var(--warn-soft);
+}
+.tc .d {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 0;
+}
+.tc .n {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 1px 0 0;
+}
+.tc .m {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 1px 0 0;
+}
+
+/* Liste des variables de configuration (Réglages, si jamais nécessaire) */
 .kv {
   display: flex;
   justify-content: space-between;
@@ -196,6 +555,14 @@
   border-top: 0;
 }
 .kv code {
-  color: var(--muted);
+  color: var(--ink-2);
   font-family: var(--font);
+}
+
+.foot {
+  max-width: 820px;
+  margin: 30px 16px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.6;
 }

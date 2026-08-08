@@ -175,6 +175,8 @@ export async function getProjet(): Promise<ProjetParams> {
     dateOuvertureChantier: map.get("DATE_OUVERTURE_CHANTIER") ?? "",
     tauxRetenueGarantie: Number.isFinite(taux) ? taux : 0,
     doSouscrite: norm(map.get("DO_SOUSCRITE")) === "oui",
+    maitreOeuvre: map.get("MAITRE_OEUVRE") ?? "",
+    decennaleHmpValidite: map.get("DECENNALE_HMP_VALIDITE") ?? "",
   };
 }
 

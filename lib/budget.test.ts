@@ -116,6 +116,8 @@ const PROJET: ProjetParams = {
   dateOuvertureChantier: "",
   tauxRetenueGarantie: 5,
   doSouscrite: false,
+  maitreOeuvre: "HMP",
+  decennaleHmpValidite: "",
 };
 
 const budget = computeBudget({
@@ -136,6 +138,8 @@ assertEqual(budget.estimeTotal, 305350, "estimé (lots sans devis)");
 assertEqual(budget.depensePrevue, 686556.01, "dépense prévue");
 assertEqual(budget.ilVousReste, -56706.01, "écart au budget (il reste)");
 assertEqual(budget.paye, 0, "payé — aucune facture ni paiement réels");
+assertEqual(budget.devisExpiresCount, 3, "devis expirés (DEV-013, DEV-014, DEV-021)");
+assertEqual(budget.retenueGarantieEnCours, 0, "retenue de garantie — aucune facture réelle");
 
 console.log(`${pass} pass, ${fail} fail`);
 if (fail > 0) process.exit(1);

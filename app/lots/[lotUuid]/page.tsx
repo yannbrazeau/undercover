@@ -71,6 +71,29 @@ function frToIso(fr: string): string {
 
 type Confirmation = { devisId: string; entreprise: string; etatDecennale: string; driveUrl: string } | null;
 
+const IconFacture = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 21V4a1 1 0 0 1 1.5-.9L9 4.5 11.5 3 14 4.5 16.5 3 19 4.5V21l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5z" />
+    <path d="M9 8h6M9 12h6" />
+  </svg>
+);
+const IconAvenant = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5M12 12v5M9.5 14.5h5" />
+  </svg>
+);
+const IconDossier = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
+const IconChevron = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="m9 5 7 7-7 7" />
+  </svg>
+);
+
 export default function FicheLotPage() {
   const params = useParams<{ lotUuid: string }>();
   const router = useRouter();
@@ -254,9 +277,9 @@ export default function FicheLotPage() {
     return (
       <>
         <ScreenHeader eyebrow="Lot" title="Introuvable" />
-        <div className="screen-body">
+        <div className="pad top">
           <div className="info">Ce lot n&apos;existe pas ou a été supprimé.</div>
-          <Link href="/lots" className="btn sec" style={{ display: "block", textAlign: "center", marginTop: 12 }}>
+          <Link href="/lots" className="btn sec">
             Retour aux lots
           </Link>
         </div>
@@ -269,220 +292,242 @@ export default function FicheLotPage() {
   return (
     <>
       <ScreenHeader eyebrow={fiche?.lot.perimetre || "Lot"} title={fiche?.lot.nom || "…"} />
-      <div className="screen-body">
+      <div className="pad top">
         {configured === false && <div className="info">La fiche du lot demande la connexion Google.</div>}
-        {message && <div className="ok">{message}</div>}
+        {message && <div className="ok-block">{message}</div>}
         {error && (
           <div className="alert">
             <b>Ça n&apos;a pas abouti</b>
-            <span>{error}</span>
+            {error}
           </div>
         )}
+      </div>
 
-        {fiche && (
-          <>
+      {fiche && (
+        <>
+          <div className="pad">
             <div className="card">
               <div className="row">
                 <span className="k">Budget</span>
-                <span className="v num">{euros(fiche.lot.budget)}</span>
+                <span className="v">{fiche.lot.budget > 0 ? euros(fiche.lot.budget) : <span className="mute">Non renseigné</span>}</span>
               </div>
               <div className="row">
                 <span className="k">Engagé</span>
-                <span className="v num">{euros(fiche.engage)}</span>
+                <span className="v">{fiche.engage > 0 ? euros(fiche.engage) : <span className="mute">Aucun devis signé</span>}</span>
               </div>
               <div className="row">
                 <span className="k">Facturé</span>
-                <span className="v num">{euros(fiche.facture)}</span>
+                <span className="v">{fiche.facture > 0 ? euros(fiche.facture) : <span className="mute">Aucune facture</span>}</span>
               </div>
               <div className="row">
                 <span className="k">Payé</span>
-                <span className="v num">{euros(fiche.paye)}</span>
+                <span className="v">{fiche.paye > 0 ? euros(fiche.paye) : <span className="mute">Aucun paiement</span>}</span>
               </div>
             </div>
+          </div>
 
-            <div className="choice">
-              <span onClick={() => router.push(`/ajouter?lot=${lotUuid}&kind=facture`)}>
-                Enregistrer une facture
-              </span>
-              <span onClick={() => router.push(`/ajouter?lot=${lotUuid}&kind=avenant`)}>Saisir un avenant</span>
-            </div>
-
-            <div className="card">
-              <h4>Devis</h4>
-              {fiche.devis.length > 1 && (
-                <p className="lead">
-                  Compare les montants et l&apos;écart au budget du lot, choisis celui qui te
-                  convainc, puis signe-le quand tu es prêt à t&apos;engager.
-                </p>
-              )}
-              {fiche.devis.length === 0 && <p className="sub">Aucun devis reçu pour ce lot.</p>}
-              {fiche.devis.map((d) => {
-                const ecart = d.ttc - fiche.lot.budget;
-                const estEnConfirmation = confirmation?.devisId === d.id;
-                return (
-                  <div className="item" key={d.id}>
-                    <div className="t">
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span className="avatar">{(d.entreprise.trim()[0] || "?").toUpperCase()}</span>
-                        {d.entreprise} <span className="sub">· {d.id}</span>
+          <p className="sect">Devis</p>
+          <div className="pad">
+            {fiche.devis.length === 0 && (
+              <div className="empty">
+                <span className="round">
+                  <IconFacture />
+                </span>
+                <div>
+                  <p className="t">Aucun devis reçu</p>
+                  <p className="m">Rien n&apos;a encore été saisi pour ce lot.</p>
+                </div>
+              </div>
+            )}
+            {fiche.devis.length > 1 && (
+              <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                Compare les montants et l&apos;écart au budget du lot, choisis celui qui te convainc, puis signe-le
+                quand tu es prêt à t&apos;engager.
+              </p>
+            )}
+            {fiche.devis.map((d) => {
+              const ecart = d.ttc - fiche.lot.budget;
+              const estEnConfirmation = confirmation?.devisId === d.id;
+              return (
+                <div className="card" key={d.id}>
+                  <div className="l1">
+                    <span className="n">
+                      <span className="avatar">{(d.entreprise.trim()[0] || "?").toUpperCase()}</span> {d.entreprise}
+                    </span>
+                    <span className="a">{euros(d.ttc)}</span>
+                  </div>
+                  <div className="l2">
+                    <span>
+                      {d.id} · {d.statut}
+                      {d.dateSignature ? ` le ${d.dateSignature}` : ""}
+                    </span>
+                    {fiche.lot.budget > 0 ? (
+                      <span className={`st ${ecart > 0.01 ? "danger" : "ok"}`}>
+                        {ecart > 0 ? "+" : ""}
+                        {euros(ecart)} vs budget
                       </span>
-                      <span className="num">{euros(d.ttc)}</span>
-                    </div>
-                    <div className="m">
-                      <span className="pill">{d.statut}</span>{" "}
-                      {d.eligibleSignature && d.decennale !== "valide" && (
-                        <span className="pill warn">décennale {d.decennale}</span>
-                      )}{" "}
-                      {fiche.lot.budget > 0 ? (
-                        <span className={ecart > 0.01 ? "bad" : "good"}>
-                          {ecart > 0 ? "+" : ""}
-                          {euros(ecart)} vs budget du lot
-                        </span>
-                      ) : (
-                        <span className="sub">budget du lot non renseigné</span>
-                      )}
-                      {d.driveUrl && (
-                        <>
-                          {" · "}
-                          <a href={d.driveUrl} target="_blank" rel="noreferrer">
-                            devis signé
-                          </a>
-                        </>
-                      )}
-                    </div>
-
-                    {d.eligibleChoix && !estEnConfirmation && (
-                      <button
-                        className="btn sec"
-                        style={{ marginTop: 8 }}
-                        disabled={busyId === d.id}
-                        onClick={() => choisir(d.id)}
-                      >
-                        {busyId === d.id ? "Choix…" : "Choisir ce devis"}
-                      </button>
-                    )}
-
-                    {d.eligibleSignature && !estEnConfirmation && (
-                      <>
-                        <label className="lead" style={{ display: "block", cursor: "pointer", marginTop: 8, marginBottom: 0 }}>
-                          <input
-                            type="file"
-                            accept="image/*,application/pdf"
-                            hidden
-                            onChange={(e) =>
-                              setFichiersSignature((prev) => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))
-                            }
-                          />
-                          {fichiersSignature[d.id]
-                            ? `Document joint : ${fichiersSignature[d.id]!.name}`
-                            : "Joindre le devis signé (PDF ou photo, optionnel)"}
-                        </label>
-                        <button
-                          className="btn sec"
-                          style={{ marginTop: 8 }}
-                          disabled={busyId === d.id}
-                          onClick={() => signer(d.id)}
-                        >
-                          {busyId === d.id
-                            ? envoiEnCours
-                              ? "Envoi du document…"
-                              : "Signature…"
-                            : "Signer ce devis"}
-                        </button>
-                      </>
-                    )}
-
-                    {estEnConfirmation && (
-                      <div className="warn" style={{ marginTop: 8 }}>
-                        <b style={{ display: "block", marginBottom: 6 }}>
-                          Attestation décennale {confirmation.etatDecennale} pour {confirmation.entreprise}.
-                        </b>
-                        Signer quand même ?
-                        <div className="choice" style={{ marginTop: 10, marginBottom: 0 }}>
-                          <span onClick={() => setConfirmation(null)}>Annuler</span>
-                          <span className="on" onClick={() => signer(d.id, true, confirmation.driveUrl)}>
-                            Signer quand même
-                          </span>
-                        </div>
-                      </div>
+                    ) : (
+                      <span className="st mute">budget non renseigné</span>
                     )}
                   </div>
-                );
-              })}
+                  {d.driveUrl && (
+                    <p className="hint">
+                      <a href={d.driveUrl} target="_blank" rel="noreferrer">
+                        Voir le devis signé
+                      </a>
+                    </p>
+                  )}
 
-              {aPrevenir.length > 0 && (
-                <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                  <p className="sub" style={{ marginBottom: 6 }}>
-                    Entreprises non retenues à prévenir
-                  </p>
-                  {aPrevenir.map((d) => (
-                    <div className="check" key={d.id} onClick={() => prevenir(d.id)} style={{ cursor: "pointer" }}>
-                      <span className="box" />
-                      <span>
-                        {d.entreprise} · {d.id}
-                      </span>
+                  {d.eligibleSignature && d.decennale !== "valide" && !estEnConfirmation && (
+                    <div className="note warn">
+                      <span className="dot warn" />
+                      <p>Décennale {d.decennale} — à réclamer avant de signer</p>
                     </div>
-                  ))}
+                  )}
+
+                  {d.eligibleChoix && !estEnConfirmation && (
+                    <button className="btn sec" disabled={busyId === d.id} onClick={() => choisir(d.id)}>
+                      {busyId === d.id ? "Choix…" : "Choisir ce devis"}
+                    </button>
+                  )}
+
+                  {d.eligibleSignature && !estEnConfirmation && (
+                    <>
+                      <label style={{ display: "block", cursor: "pointer", marginTop: 8, fontSize: 12.5, color: "var(--ink-2)" }}>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          hidden
+                          onChange={(e) =>
+                            setFichiersSignature((prev) => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))
+                          }
+                        />
+                        {fichiersSignature[d.id]
+                          ? `Document joint : ${fichiersSignature[d.id]!.name}`
+                          : "Joindre le devis signé (PDF ou photo, optionnel)"}
+                      </label>
+                      <button className="btn" disabled={busyId === d.id} onClick={() => signer(d.id)}>
+                        {busyId === d.id ? (envoiEnCours ? "Envoi du document…" : "Signature…") : "Signer ce devis"}
+                      </button>
+                    </>
+                  )}
+
+                  {estEnConfirmation && (
+                    <div className="note warn">
+                      <span className="dot warn" />
+                      <div>
+                        <p className="t">
+                          Attestation décennale {confirmation.etatDecennale} pour {confirmation.entreprise}.
+                        </p>
+                        <p className="m">Signer quand même ?</p>
+                        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                          <button className="btn ghost" style={{ marginTop: 0 }} onClick={() => setConfirmation(null)}>
+                            Annuler
+                          </button>
+                          <button className="btn" style={{ marginTop: 0 }} onClick={() => signer(d.id, true, confirmation.driveUrl)}>
+                            Signer quand même
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })}
 
-            {fiche.avenants.length > 0 && (
-              <div className="card">
-                <h4>Avenants</h4>
-                {fiche.avenants.map((a) => (
-                  <div className="item" key={a.id}>
-                    <div className="t">
-                      <span>{a.description}</span>
-                      <span className="num">
-                        {a.montantTTC > 0 ? "+" : ""}
-                        {euros(a.montantTTC)}
-                      </span>
-                    </div>
-                    <div className="m">
-                      {a.id} · {a.date}
-                    </div>
+            {aPrevenir.length > 0 && (
+              <div className="card flat">
+                <p className="lbl">Entreprises non retenues à prévenir</p>
+                {aPrevenir.map((d) => (
+                  <div className="check" key={d.id} onClick={() => prevenir(d.id)} style={{ cursor: "pointer" }}>
+                    <span className="box" />
+                    <span>
+                      {d.entreprise} · {d.id}
+                    </span>
                   </div>
                 ))}
               </div>
             )}
+          </div>
 
-            <div className="card">
-              <h4>Factures</h4>
-              {fiche.factures.length === 0 && <p className="sub">Aucune facture rattachée à ce lot.</p>}
-              {fiche.factures.map((f) => (
-                <div className="item" key={f.id}>
-                  <div className="t">
-                    <span>
-                      {f.nature} <span className="sub">· {f.id}</span>
-                    </span>
-                    <span className="num">{euros(f.montantTTC)}</span>
-                  </div>
-                  <div className="m">
-                    <span className="pill">{f.statut}</span> {f.date}
-                    {f.resteDu > 0.01 ? ` · reste dû ${euros(f.resteDu)}` : ""}
-                    {f.driveUrl && (
-                      <>
-                        {" · "}
-                        <a href={f.driveUrl} target="_blank" rel="noreferrer">
-                          document
-                        </a>
-                      </>
-                    )}
-                  </div>
+          {fiche.avenants.length > 0 && (
+            <>
+              <p className="sect">Avenants</p>
+              <div className="pad">
+                <div className="card">
+                  {fiche.avenants.map((a) => (
+                    <div className="row" key={a.id}>
+                      <span className="k">
+                        {a.description} <span className="mute">· {a.id}</span>
+                      </span>
+                      <span className="v">
+                        {a.montantTTC > 0 ? "+" : ""}
+                        {euros(a.montantTTC)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            </>
+          )}
 
+          <p className="sect">Factures</p>
+          <div className="pad">
+            {fiche.factures.length === 0 ? (
+              <div className="empty">
+                <span className="round">
+                  <IconFacture />
+                </span>
+                <div>
+                  <p className="t">Aucune facture enregistrée</p>
+                  <p className="m">Rien n&apos;a encore été saisi pour ce lot.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="card">
+                {fiche.factures.map((f) => (
+                  <div className="row" key={f.id}>
+                    <span className="k">
+                      {f.nature} <span className="mute">· {f.id}</span>
+                    </span>
+                    <span className="v">{euros(f.montantTTC)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="acts">
+              <button type="button" className="act" onClick={() => router.push(`/ajouter?lot=${lotUuid}&kind=facture`)}>
+                <span className="ic accent">
+                  <IconFacture />
+                </span>
+                <div>
+                  <p className="t">Enregistrer une facture</p>
+                  <p className="m">Acompte, situation ou solde</p>
+                </div>
+                <i className="chev">
+                  <IconChevron />
+                </i>
+              </button>
+              <button type="button" className="act" onClick={() => router.push(`/ajouter?lot=${lotUuid}&kind=avenant`)}>
+                <span className="ic accent">
+                  <IconAvenant />
+                </span>
+                <div>
+                  <p className="t">Saisir un avenant</p>
+                  <p className="m">Seul moyen de faire évoluer l&apos;engagé</p>
+                </div>
+                <i className="chev">
+                  <IconChevron />
+                </i>
+              </button>
+            </div>
+          </div>
+
+          <p className="sect">Planning</p>
+          <div className="pad">
             <div className="card">
-              <h4>Planning</h4>
               <label>Début prévu</label>
-              <input
-                className="field"
-                type="date"
-                value={debutPrevu}
-                onChange={(e) => setDebutPrevu(e.target.value)}
-              />
+              <input className="field" type="date" value={debutPrevu} onChange={(e) => setDebutPrevu(e.target.value)} />
               <label>Fin prévue</label>
               <input className="field" type="date" value={finPrevue} onChange={(e) => setFinPrevue(e.target.value)} />
               <label>Avancement réel (%)</label>
@@ -491,40 +536,55 @@ export default function FicheLotPage() {
                 inputMode="numeric"
                 value={avancementPct}
                 onChange={(e) => setAvancementPct(e.target.value)}
+                style={{ marginBottom: 0 }}
               />
               <button className="btn sec" onClick={enregistrerPlanning} disabled={enregistrementPlanning}>
                 {enregistrementPlanning ? "Enregistrement…" : "Enregistrer le planning"}
               </button>
             </div>
+          </div>
 
+          <div className="pad">
             {fiche.lot.driveFolderUrl && (
-              <div className="card">
-                <a href={fiche.lot.driveFolderUrl} target="_blank" rel="noreferrer">
-                  Ouvrir le dossier de documents
+              <div className="acts">
+                <a className="act" href={fiche.lot.driveFolderUrl} target="_blank" rel="noreferrer">
+                  <span className="ic neutral">
+                    <IconDossier />
+                  </span>
+                  <div>
+                    <p className="t">Dossier de documents</p>
+                    <p className="m">Devis, factures et photos du lot</p>
+                  </div>
+                  <i className="chev">
+                    <IconChevron />
+                  </i>
                 </a>
               </div>
             )}
 
-            <div style={{ marginTop: 20 }}>
-              {!confirmerSuppression ? (
-                <button className="btn danger" onClick={() => setConfirmerSuppression(true)}>
-                  Supprimer ce lot
-                </button>
-              ) : (
-                <div className="warn">
-                  <b style={{ display: "block", marginBottom: 6 }}>Supprimer {fiche.lot.nom} ?</b>
-                  <div className="choice" style={{ marginTop: 4, marginBottom: 0 }}>
-                    <span onClick={() => setConfirmerSuppression(false)}>Annuler</span>
-                    <span className="on" onClick={supprimer}>
+            {!confirmerSuppression ? (
+              <button type="button" className="destroy" onClick={() => setConfirmerSuppression(true)}>
+                Supprimer ce lot
+              </button>
+            ) : (
+              <div className="note warn">
+                <span className="dot warn" />
+                <div>
+                  <p className="t">Supprimer {fiche.lot.nom} ?</p>
+                  <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                    <button className="btn ghost" style={{ marginTop: 0 }} onClick={() => setConfirmerSuppression(false)}>
+                      Annuler
+                    </button>
+                    <button className="btn danger" style={{ marginTop: 0 }} onClick={supprimer}>
                       {suppression ? "Suppression…" : "Confirmer la suppression"}
-                    </span>
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 }

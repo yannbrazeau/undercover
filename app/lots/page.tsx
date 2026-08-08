@@ -5,6 +5,9 @@ import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
 
+type Etat = "dépassement" | "sous le budget" | "signé" | "expirés" | "à choisir" | "budget estimé";
+type Tonalite = "danger" | "warn" | "ok" | "mute";
+
 type LotItem = {
   lotUuid: string;
   nom: string;
@@ -13,13 +16,26 @@ type LotItem = {
   engage: number;
   facture: number;
   paye: number;
-  ecartBudget: number;
   entreprise: string;
   nbDevis: number;
-  etat: "aucun devis" | "à choisir" | "en cours" | "terminé";
+  etat: Etat;
+  etatTonalite: Tonalite;
+  aLabel: string;
+  aTonalite: Tonalite;
+  l2Primaire: string;
+  l2Secondaire: string | null;
   debutPrevu: string;
   finPrevue: string;
   avancementPct: number;
+};
+
+const ETAT_LABEL: Record<Etat, string> = {
+  "dépassement": "Dépassement",
+  "sous le budget": "Sous le budget",
+  "signé": "Signé",
+  "expirés": "Expirés",
+  "à choisir": "À choisir",
+  "budget estimé": "Budget estimé",
 };
 
 function parseFr(s: string): Date | null {
@@ -32,8 +48,6 @@ export default function LotsPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [lots, setLots] = useState<LotItem[]>([]);
   const [depensePrevue, setDepensePrevue] = useState(0);
-  const [ilVousReste, setIlVousReste] = useState(0);
-  const [budgetContractuel, setBudgetContractuel] = useState(0);
   const [vue, setVue] = useState<"liste" | "chronologie">("liste");
   const [recherche, setRecherche] = useState("");
 
@@ -52,8 +66,6 @@ export default function LotsPage() {
         if (status === 200) {
           setLots(d.lots ?? []);
           setDepensePrevue(d.depensePrevue ?? 0);
-          setIlVousReste(d.ilVousReste ?? 0);
-          setBudgetContractuel(d.budgetContractuel ?? 0);
         }
       })
       .catch(() => setConfigured(false));
@@ -103,31 +115,30 @@ export default function LotsPage() {
   const chronologie = useMemo(() => {
     const avecDate = lotsFiltres
       .filter((l) => parseFr(l.debutPrevu))
-      .sort((a, b) => (parseFr(a.debutPrevu)!.getTime() - parseFr(b.debutPrevu)!.getTime()));
+      .sort((a, b) => parseFr(a.debutPrevu)!.getTime() - parseFr(b.debutPrevu)!.getTime());
     const sansDate = lotsFiltres.filter((l) => !parseFr(l.debutPrevu));
     return { avecDate, sansDate };
   }, [lotsFiltres]);
 
+  if (configured === false) {
+    return (
+      <>
+        <ScreenHeader title="Lots" />
+        <div className="pad top">
+          <div className="info">La liste des lots demande la connexion Google, à établir dans Réglages.</div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <ScreenHeader eyebrow={`${lots.length} lots`} title="Lots" />
-      <div className="sticky">
-        <span className="l">Dépense prévue · il te reste</span>
-        <span className="r">
-          {configured ? (
-            <>
-              {euros(depensePrevue)}{" "}
-              <span style={{ color: ilVousReste < 0 ? "var(--danger)" : "var(--ok)" }}>
-                {ilVousReste < 0 ? "" : "+"}
-                {euros(ilVousReste)}
-              </span>
-            </>
-          ) : (
-            "…"
-          )}
-        </span>
+      <div className="strip">
+        <span className="k">Dépense prévue</span>
+        <span className="v">{configured ? euros(depensePrevue) : "…"}</span>
       </div>
-      <div className="screen-body">
+      <div className="pad top">
         <div className="tabs">
           <span className={vue === "liste" ? "on" : undefined} onClick={() => setVue("liste")}>
             Liste
@@ -136,136 +147,149 @@ export default function LotsPage() {
             Chronologie
           </span>
         </div>
-
-        {configured === false && (
-          <div className="info">La liste des lots demande la connexion Google.</div>
-        )}
-
         {vue === "liste" && (
-          <>
-            <input
-              className="field"
-              placeholder="Rechercher un lot"
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-            />
+          <input
+            className="search"
+            placeholder="Rechercher un lot"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+          />
+        )}
+      </div>
+
+      {vue === "liste" && (
+        <>
+          <div className="pad">
             {lotsFiltres.map((l) => (
               <LigneLot key={l.lotUuid} lot={l} />
             ))}
-          </>
-        )}
-
-        {vue === "chronologie" && (
-          <>
-            {chronologie.avecDate.map((l) => (
-              <LigneChronologie key={l.lotUuid} lot={l} aujourdHui={aujourdHui} />
-            ))}
-            {chronologie.sansDate.length > 0 && (
-              <>
-                <p className="sub" style={{ marginTop: 14, marginBottom: 6 }}>
-                  Dates à définir
-                </p>
-                {chronologie.sansDate.map((l) => (
-                  <LigneChronologie key={l.lotUuid} lot={l} aujourdHui={aujourdHui} />
-                ))}
-              </>
-            )}
-          </>
-        )}
-
-        <div style={{ marginTop: 20 }}>
-          {!ajoutOuvert ? (
-            <span
-              onClick={() => setAjoutOuvert(true)}
-              style={{ color: "var(--accent)", fontSize: "var(--fs-secondary)", cursor: "pointer" }}
-            >
-              Ajouter un lot
-            </span>
-          ) : (
-            <div className="card">
-              <h4>Nouveau lot</h4>
-              {erreurCreation && (
-                <div className="alert">
-                  <b>La création n&apos;a pas abouti</b>
-                  <span>{erreurCreation}</span>
-                </div>
-              )}
-              <label>Nom</label>
-              <input
-                className="field"
-                placeholder="Panneaux solaires"
-                value={nouveauNom}
-                onChange={(e) => setNouveauNom(e.target.value)}
-              />
-              <label>Budget TTC estimé</label>
-              <input
-                className="field"
-                inputMode="decimal"
-                placeholder="0,00 €"
-                value={nouveauBudget}
-                onChange={(e) => setNouveauBudget(e.target.value)}
-              />
-              <label>Périmètre</label>
-              <input
-                className="field"
-                placeholder="Ce que couvre le lot"
-                value={nouveauPerimetre}
-                onChange={(e) => setNouveauPerimetre(e.target.value)}
-              />
-              <div className="choice" style={{ marginBottom: 0 }}>
-                <span onClick={() => setAjoutOuvert(false)}>Annuler</span>
-                <span className="on" onClick={creerLot}>
+          </div>
+          <div className="pad">
+            {!ajoutOuvert ? (
+              <div className="acts">
+                <button type="button" className="act" onClick={() => setAjoutOuvert(true)}>
+                  <span className="ic accent">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="t">Ajouter un lot</p>
+                    <p className="m">Créer un poste de travaux et son dossier</p>
+                  </div>
+                  <i className="chev">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m9 5 7 7-7 7" />
+                    </svg>
+                  </i>
+                </button>
+              </div>
+            ) : (
+              <div className="card">
+                <h4>Nouveau lot</h4>
+                {erreurCreation && (
+                  <div className="alert">
+                    <b>La création n&apos;a pas abouti</b>
+                    <span>{erreurCreation}</span>
+                  </div>
+                )}
+                <label>Nom</label>
+                <input
+                  className="field"
+                  placeholder="Panneaux solaires"
+                  value={nouveauNom}
+                  onChange={(e) => setNouveauNom(e.target.value)}
+                />
+                <label>Budget TTC estimé</label>
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  placeholder="0,00 €"
+                  value={nouveauBudget}
+                  onChange={(e) => setNouveauBudget(e.target.value)}
+                />
+                <label>Périmètre</label>
+                <input
+                  className="field"
+                  placeholder="Ce que couvre le lot"
+                  value={nouveauPerimetre}
+                  onChange={(e) => setNouveauPerimetre(e.target.value)}
+                />
+                <button type="button" className="btn" disabled={creation || !nouveauNom.trim()} onClick={creerLot}>
                   {creation ? "Création…" : "Créer le lot"}
-                </span>
+                </button>
+                <button type="button" className="destroy" onClick={() => setAjoutOuvert(false)}>
+                  Annuler
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {vue === "chronologie" && (
+        <div className="pad">
+          {chronologie.avecDate.map((l, i) => (
+            <LigneChronologie key={l.lotUuid} lot={l} aujourdHui={aujourdHui} dernier={i === chronologie.avecDate.length - 1 && chronologie.sansDate.length === 0} />
+          ))}
+          {chronologie.sansDate.length > 0 && (
+            <div className="empty">
+              <span className="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="5" width="18" height="16" rx="2.5" />
+                  <path d="M3 10h18M8 3v4M16 3v4" />
+                </svg>
+              </span>
+              <div>
+                <p className="t">{chronologie.sansDate.length} lots sans date</p>
+                <p className="m">Le planning général doit être fourni par HMP. Tu pourras saisir les dates lot par lot.</p>
               </div>
             </div>
           )}
         </div>
-      </div>
+      )}
     </>
   );
 }
 
 function LigneLot({ lot }: { lot: LotItem }) {
   return (
-    <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
-      <div className="t">
-        <span>{lot.nom}</span>
-        {lot.budget > 0 ? (
-          <span className={`num ${lot.ecartBudget > 0.01 ? "bad" : "good"}`}>
-            {lot.ecartBudget > 0 ? "+" : ""}
-            {euros(lot.ecartBudget)}
-          </span>
-        ) : (
-          <span className="sub">budget non renseigné</span>
-        )}
+    <Link href={`/lots/${lot.lotUuid}`} className="lot">
+      <div className="l1">
+        <span className="n">{lot.nom}</span>
+        <span className={`a ${lot.aTonalite}`}>{lot.aLabel}</span>
       </div>
-      <div className="m">
-        {lot.entreprise || "aucune entreprise retenue"} · {lot.nbDevis} devis · {lot.etat}
-      </div>
-      <div className="bar" style={{ margin: "8px 0 0" }}>
-        <i style={{ width: `${Math.max(0, Math.min(100, lot.avancementPct))}%` }} />
+      <div className="l2">
+        <span>{lot.l2Secondaire ? `${lot.l2Primaire} · ${lot.l2Secondaire}` : lot.l2Primaire}</span>
+        <span className={`st ${lot.etatTonalite}`}>{ETAT_LABEL[lot.etat]}</span>
       </div>
     </Link>
   );
 }
 
-function LigneChronologie({ lot, aujourdHui }: { lot: LotItem; aujourdHui: Date }) {
+function LigneChronologie({ lot, aujourdHui, dernier }: { lot: LotItem; aujourdHui: Date; dernier: boolean }) {
   const fin = parseFr(lot.finPrevue);
   const enRetard = !!fin && fin < aujourdHui && lot.avancementPct < 100;
+  const pointTonalite = enRetard ? "warn" : lot.avancementPct > 0 ? "on" : "";
   return (
-    <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
-      <div className="t">
-        <span style={enRetard ? { color: "var(--danger)" } : undefined}>{lot.nom}</span>
-        <span className="sub">{lot.avancementPct}%</span>
+    <div className={`tl${dernier ? " last" : ""}`}>
+      <span className={`pt ${pointTonalite}`} />
+      <div className="tc">
+        <p className="d">
+          {lot.debutPrevu} au {lot.finPrevue || "date de fin non définie"}
+        </p>
+        <p className="n">{lot.nom}</p>
+        {lot.avancementPct > 0 ? (
+          <>
+            <p className="m">Avancement {lot.avancementPct} %</p>
+            <div className="bar thin">
+              <i style={{ width: `${Math.max(0, Math.min(100, lot.avancementPct))}%` }} />
+            </div>
+          </>
+        ) : (
+          <p className={`m st ${lot.etatTonalite}`}>{lot.l2Primaire}</p>
+        )}
       </div>
-      <div className="m" style={enRetard ? { color: "var(--danger)" } : undefined}>
-        {lot.debutPrevu || "début non défini"} → {lot.finPrevue || "fin non définie"}
-        {enRetard ? " · en retard" : ""}
-      </div>
-      <div className="bar" style={{ margin: "8px 0 0" }}>
-        <i style={{ width: `${Math.max(0, Math.min(100, lot.avancementPct))}%` }} />
-      </div>
-    </Link>
+    </div>
   );
 }

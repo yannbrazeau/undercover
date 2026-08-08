@@ -114,4 +114,6 @@ export type ProjetParams = {
   dateOuvertureChantier: string; // vide tant que non déclarée
   tauxRetenueGarantie: number;
   doSouscrite: boolean; // dommages-ouvrage, à souscrire avant l'ouverture du chantier
+  maitreOeuvre: string;
+  decennaleHmpValidite: string; // date JJ/MM/AAAA, vide si non renseignée
 };

@@ -67,6 +67,8 @@ export type BudgetSummary = {
   decennaleSousReserve: EntrepriseDecennaleAlerte[];
   rappelOuvertureChantier: boolean;
   rappelDommagesOuvrage: boolean;
+  devisExpiresCount: number;
+  retenueGarantieEnCours: number;
 };
 
 export type BudgetInput = {
@@ -123,6 +125,9 @@ export function computeBudget(input: BudgetInput): BudgetSummary {
     else decennaleAReclamer.push(item);
   }
 
+  const devisExpiresCount = devis.filter((d) => norm(d.STATUT) === "expire").length;
+  const retenueGarantieEnCours = round2(factures.reduce((s, f) => s + f.RETENUE_GARANTIE, 0));
+
   return {
     budgetContractuel: round2(projet.budgetContractuel),
     depensePrevue,
@@ -136,5 +141,7 @@ export function computeBudget(input: BudgetInput): BudgetSummary {
     decennaleSousReserve,
     rappelOuvertureChantier: !projet.dateOuvertureChantier,
     rappelDommagesOuvrage: !projet.doSouscrite && !projet.dateOuvertureChantier,
+    devisExpiresCount,
+    retenueGarantieEnCours,
   };
 }

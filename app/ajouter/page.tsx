@@ -18,10 +18,52 @@ type FactureOuverte = {
 
 const NATURES = ["Acompte", "Situation d'avancement", "Solde"];
 const MOYENS = ["Virement", "Chèque", "Espèces", "Autre"];
+
+const IconFacture = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 21V4a1 1 0 0 1 1.5-.9L9 4.5 11.5 3 14 4.5 16.5 3 19 4.5V21l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5z" />
+    <path d="M9 8h6M9 12h6" />
+  </svg>
+);
+const IconPaiement = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 5.5A7 7 0 0 0 7 12a7 7 0 0 0 10 6.5" />
+    <path d="M3.5 10h8M3.5 14h8" />
+  </svg>
+);
+const IconAvenant = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5M12 12v5M9.5 14.5h5" />
+  </svg>
+);
+const IconDevis = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5M9 13h6M9 17h4" />
+  </svg>
+);
+const IconPhoto = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.5 4h-5L8 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+const IconAutre = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
+    <circle cx="5" cy="12" r="0.5" />
+    <circle cx="12" cy="12" r="0.5" />
+    <circle cx="19" cy="12" r="0.5" />
+  </svg>
+);
+
 const KINDS = [
-  { key: "facture", label: "Facture" },
-  { key: "paiement", label: "Paiement" },
-  { key: "avenant", label: "Avenant" },
+  { key: "facture", label: "Facture", Icon: IconFacture, disponible: true },
+  { key: "paiement", label: "Paiement", Icon: IconPaiement, disponible: true },
+  { key: "avenant", label: "Avenant", Icon: IconAvenant, disponible: true },
+  { key: "devis", label: "Devis", Icon: IconDevis, disponible: false },
+  { key: "photo", label: "Photo", Icon: IconPhoto, disponible: false },
+  { key: "autre", label: "Autre", Icon: IconAutre, disponible: false },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
 
@@ -223,60 +265,51 @@ export default function AjouterPage() {
     }
   }, [kind, submitFacture, submitPaiement, submitAvenant, chargerListes]);
 
+  const kindActuel = KINDS.find((k) => k.key === kind)!;
+
   return (
     <>
       <ScreenHeader title="Ajouter" />
-      <div className="screen-body">
-        {done && <div className="ok">{done}</div>}
+      <div className="pad top">
+        {done && <div className="ok-block">{done}</div>}
         {alerte && (
           <div className="alert">
             <b>Dépassement du devis signé</b>
-            <span>{alerte}</span>
+            {alerte}
           </div>
         )}
         {error && (
           <div className="alert">
             <b>L&apos;enregistrement n&apos;a pas abouti</b>
-            <span>{error}</span>
+            {error}
           </div>
         )}
 
-        {kind === "facture" && (
-          <>
-            <label className="drop" style={{ cursor: "pointer" }}>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,application/pdf"
-                capture="environment"
-                hidden
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-              <b>Photographier</b>
-              <span>{file ? file.name : "ou choisir un fichier"}</span>
-            </label>
-            {file && (
-              <button
-                type="button"
-                onClick={clearFile}
-                style={{
-                  background: "none",
-                  border: 0,
-                  color: "var(--accent)",
-                  fontFamily: "inherit",
-                  fontSize: "var(--fs-secondary)",
-                  padding: "0 0 14px",
-                  cursor: "pointer",
-                }}
-              >
-                Retirer le fichier
-              </button>
-            )}
-          </>
+        {kindActuel.disponible && (kind === "facture" || kind === "avenant") && (
+          <label className="drop">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,application/pdf"
+              capture="environment"
+              hidden
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <i className="ic">
+              <IconPhoto />
+            </i>
+            <p className="t">Photographier</p>
+            <p className="m">{file ? file.name : "ou choisir un fichier"}</p>
+          </label>
+        )}
+        {file && (
+          <button type="button" className="destroy" onClick={clearFile} style={{ marginTop: -10, marginBottom: 10 }}>
+            Retirer le fichier
+          </button>
         )}
 
-        <label>C&apos;est quoi ?</label>
-        <div className="choice">
+        <p className="lbl">C&apos;est quoi ?</p>
+        <div className="tiles">
           {KINDS.map((k) => (
             <span
               key={k.key}
@@ -286,14 +319,32 @@ export default function AjouterPage() {
                 setKind(k.key);
               }}
             >
+              <i>
+                <k.Icon />
+              </i>
               {k.label}
             </span>
           ))}
         </div>
 
+        {!kindActuel.disponible && (
+          <div className="empty">
+            <span className="round">
+              <IconAutre />
+            </span>
+            <div>
+              <p className="t">Pas encore disponible</p>
+              <p className="m">
+                L&apos;ajout de {kindActuel.label.toLowerCase()} n&apos;est pas encore relié au classeur. Utilise
+                Facture, Paiement ou Avenant en attendant.
+              </p>
+            </div>
+          </div>
+        )}
+
         {kind === "facture" && (
           <>
-            <label>Pour quel lot ?</label>
+            <p className="lbl">Pour quel lot ?</p>
             {configured === false ? (
               <div className="info">
                 La liste des lots demande la connexion Google. Une fois les identifiants en place,
@@ -315,7 +366,7 @@ export default function AjouterPage() {
               </select>
             )}
 
-            <label>Nature</label>
+            <p className="lbl">Nature</p>
             <select className="field" value={nature} onChange={(e) => setNature(e.target.value)}>
               {NATURES.map((n) => (
                 <option key={n} value={n}>
@@ -324,7 +375,7 @@ export default function AjouterPage() {
               ))}
             </select>
 
-            <label>Montant TTC</label>
+            <p className="lbl">Montant TTC</p>
             <input
               className="field"
               inputMode="decimal"
@@ -333,20 +384,23 @@ export default function AjouterPage() {
               onChange={(e) => setMontantTTC(e.target.value)}
             />
 
-            <label>Retenue de garantie</label>
-            <input
-              className="field"
-              inputMode="decimal"
-              placeholder="5 %"
-              value={tauxRetenue}
-              onChange={(e) => setTauxRetenue(e.target.value)}
-            />
+            <p className="lbl">Retenue de garantie</p>
+            <div className="field calcField">
+              <input
+                inputMode="decimal"
+                placeholder="5"
+                value={tauxRetenue}
+                onChange={(e) => setTauxRetenue(e.target.value)}
+                style={{ border: 0, outline: "none", width: 60, font: "inherit", background: "none" }}
+              />
+              <span>%</span>
+              {ttc > 0 && <span className="calc">soit {euros(montants.retenueGarantie)}</span>}
+            </div>
 
             {ttc > 0 && (
-              <div className="info num">
-                Retenue {euros(montants.retenueGarantie)} · net à payer {euros(montants.netAPayer)}
-                <br />
-                {lot ? `Sera rangé dans ${lot.nom} → Factures` : "Choisissez un lot pour le classement"}
+              <div className="recap">
+                <p className="t">Net à payer {euros(montants.netAPayer)}</p>
+                <p className="m">{lot ? `Sera rangé dans ${lot.nom}, dossier Factures` : "Choisis un lot pour le classement"}</p>
               </div>
             )}
           </>
@@ -354,7 +408,7 @@ export default function AjouterPage() {
 
         {kind === "paiement" && (
           <>
-            <label>Quelle facture régler ?</label>
+            <p className="lbl">Quelle facture régler ?</p>
             {configured === false ? (
               <div className="info">
                 La liste des factures demande la connexion Google.
@@ -377,7 +431,7 @@ export default function AjouterPage() {
               </select>
             )}
 
-            <label>Montant réglé</label>
+            <p className="lbl">Montant réglé</p>
             <input
               className="field"
               inputMode="decimal"
@@ -386,7 +440,7 @@ export default function AjouterPage() {
               onChange={(e) => setMontantPaiement(e.target.value)}
             />
 
-            <label>Moyen</label>
+            <p className="lbl">Moyen</p>
             <select className="field" value={moyen} onChange={(e) => setMoyen(e.target.value)}>
               {MOYENS.map((m) => (
                 <option key={m} value={m}>
@@ -395,7 +449,7 @@ export default function AjouterPage() {
               ))}
             </select>
 
-            <label>Référence</label>
+            <p className="lbl">Référence</p>
             <input
               className="field"
               placeholder="Numéro de virement, par exemple"
@@ -404,10 +458,10 @@ export default function AjouterPage() {
             />
 
             {factureAPayer && montantRegle > 0 && (
-              <div className="info num">
-                {resteApres <= 0
-                  ? "Facture soldée après ce paiement."
-                  : `Reste dû après ce paiement : ${euros(resteApres)}.`}
+              <div className="recap">
+                <p className="t">
+                  {resteApres <= 0 ? "Facture soldée après ce paiement." : `Reste dû ${euros(resteApres)}`}
+                </p>
               </div>
             )}
           </>
@@ -415,7 +469,7 @@ export default function AjouterPage() {
 
         {kind === "avenant" && (
           <>
-            <label>Pour quel lot ?</label>
+            <p className="lbl">Pour quel lot ?</p>
             {configured === false ? (
               <div className="info">
                 La liste des lots demande la connexion Google. Une fois les identifiants en place,
@@ -437,7 +491,7 @@ export default function AjouterPage() {
               </select>
             )}
 
-            <label>Description</label>
+            <p className="lbl">Description</p>
             <input
               className="field"
               placeholder="Reprise de fondations non prévue au devis"
@@ -445,7 +499,7 @@ export default function AjouterPage() {
               onChange={(e) => setAvenantDescription(e.target.value)}
             />
 
-            <label>Montant TTC</label>
+            <p className="lbl">Montant TTC</p>
             <input
               className="field"
               inputMode="decimal"
@@ -455,24 +509,28 @@ export default function AjouterPage() {
             />
 
             {montantAvenant !== 0 && (
-              <div className="info num">
-                {montantAvenant > 0
-                  ? `Augmente l'engagé du lot de ${euros(montantAvenant)}.`
-                  : `Diminue l'engagé du lot de ${euros(Math.abs(montantAvenant))}.`}
+              <div className="recap">
+                <p className="t">
+                  {montantAvenant > 0
+                    ? `Augmente l'engagé du lot de ${euros(montantAvenant)}`
+                    : `Diminue l'engagé du lot de ${euros(Math.abs(montantAvenant))}`}
+                </p>
               </div>
             )}
           </>
         )}
 
-        <button className="btn" onClick={submit} disabled={!canSubmit}>
-          {submitting
-            ? "Enregistrement…"
-            : kind === "paiement"
-              ? "Enregistrer le paiement"
-              : kind === "avenant"
-                ? "Enregistrer l'avenant"
-                : "Enregistrer la facture"}
-        </button>
+        {kindActuel.disponible && (
+          <button className="btn" onClick={submit} disabled={!canSubmit}>
+            {submitting
+              ? "Enregistrement…"
+              : kind === "paiement"
+                ? "Enregistrer le paiement"
+                : kind === "avenant"
+                  ? "Enregistrer l'avenant"
+                  : "Enregistrer la facture"}
+          </button>
+        )}
       </div>
     </>
   );
