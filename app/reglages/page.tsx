@@ -27,30 +27,18 @@ export default function ReglagesPage() {
 
   return (
     <>
-      <ScreenHeader eyebrow="Réglages" title="Réglages" />
+      <ScreenHeader title="Réglages" />
       <div className="screen-body">
         <div className="card">
-          <h4>Connexion Google</h4>
           {health?.configured ? (
             <div className="row">
-              <span className="k">Accès au chantier</span>
-              <span className="v good">Configuré</span>
+              <span className="k">Connexion au chantier</span>
+              <span className="v good">établie</span>
             </div>
           ) : (
             <div className="info">
-              L&apos;accès Google n&apos;est pas encore configuré. Les identifiants se
-              renseignent dans l&apos;hébergement, une seule fois.
-            </div>
-          )}
-
-          {health && (
-            <div style={{ marginTop: 8 }}>
-              {Object.entries(health.status).map(([key, ok]) => (
-                <div className="kv" key={key}>
-                  <code>{key}</code>
-                  <span className={ok ? "good" : "bad"}>{ok ? "présent" : "manquant"}</span>
-                </div>
-              ))}
+              La connexion au chantier n&apos;est pas encore établie. Elle se renseigne dans
+              l&apos;hébergement, une seule fois.
             </div>
           )}
 

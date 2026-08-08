@@ -19,10 +19,9 @@ type FactureOuverte = {
 const NATURES = ["Acompte", "Situation d'avancement", "Solde"];
 const MOYENS = ["Virement", "Chèque", "Espèces", "Autre"];
 const KINDS = [
-  { key: "facture", label: "Facture", enabled: true },
-  { key: "paiement", label: "Paiement", enabled: true },
-  { key: "avenant", label: "Avenant", enabled: true },
-  { key: "devis", label: "Devis", enabled: false },
+  { key: "facture", label: "Facture" },
+  { key: "paiement", label: "Paiement" },
+  { key: "avenant", label: "Avenant" },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
 
@@ -226,12 +225,12 @@ export default function AjouterPage() {
 
   return (
     <>
-      <ScreenHeader eyebrow="Nouveau document" title="Ajouter" />
+      <ScreenHeader title="Ajouter" />
       <div className="screen-body">
         {done && <div className="ok">{done}</div>}
         {alerte && (
           <div className="alert">
-            <b>Dépassement du marché signé</b>
+            <b>Dépassement du devis signé</b>
             <span>{alerte}</span>
           </div>
         )}
@@ -282,9 +281,7 @@ export default function AjouterPage() {
             <span
               key={k.key}
               className={kind === k.key ? "on" : undefined}
-              style={{ opacity: k.enabled ? 1 : 0.45, cursor: k.enabled ? "pointer" : "default" }}
               onClick={() => {
-                if (!k.enabled) return;
                 resetMessages();
                 setKind(k.key);
               }}
@@ -374,7 +371,7 @@ export default function AjouterPage() {
                 <option value="">Choisir une facture…</option>
                 {facturesOuvertes.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.entreprise} — {f.nature} — {euros(f.resteDu)} restant ({f.lot})
+                    {f.entreprise} · {f.nature} · {euros(f.resteDu)} restant ({f.lot})
                   </option>
                 ))}
               </select>

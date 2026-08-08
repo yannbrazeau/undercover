@@ -69,35 +69,35 @@ export default function BudgetPage() {
 
   return (
     <>
-      <ScreenHeader eyebrow="Chantier Bouchemaine" title="Budget" />
+      <ScreenHeader title="Budget" />
       <div className="screen-body">
         {configured === false && (
           <div className="info">
             {error ||
-              "L'accès Google n'est pas encore configuré. Les chiffres du chantier s'afficheront une fois la connexion établie, dans Réglages."}
+              "La connexion au chantier n'est pas encore établie. Les chiffres s'afficheront une fois qu'elle le sera, dans Réglages."}
           </div>
         )}
 
         {budget?.rappelOuvertureChantier && (
           <div className="warn">
-            Déclare la date d&apos;ouverture du chantier dès que tu la connais — tant qu&apos;elle
-            manque, les attestations décennales restent « valide sous réserve ».
+            Déclare la date d&apos;ouverture du chantier dès que tu la connais : tant
+            qu&apos;elle manque, les attestations décennales restent « valide sous réserve ».
           </div>
         )}
         {budget?.rappelDommagesOuvrage && (
           <div className="warn">
-            Souscris l&apos;assurance dommages-ouvrage avant l&apos;ouverture du chantier — elle
-            n&apos;est pas encore faite.
+            Souscris l&apos;assurance dommages-ouvrage avant l&apos;ouverture du chantier :
+            elle n&apos;est pas encore faite.
           </div>
         )}
 
-        <div className={`card hero ${enDepassement ? "depasse" : ""}`}>
-          <p className="sub">Il vous reste</p>
+        <div className="hero">
+          <p className="sub">Il te reste</p>
           <p className={`amount num ${enDepassement ? "bad" : ""}`}>
-            {budget ? euros(budget.ilVousReste) : "—"}
+            {budget ? euros(budget.ilVousReste) : "…"}
           </p>
           <p className="sub">
-            sur {budget ? euros(budget.budgetContractuel) : "—"} prévus au contrat
+            sur {budget ? euros(budget.budgetContractuel) : "…"} prévus au contrat
           </p>
           {enDepassement && (
             <p className="lead" style={{ margin: "10px 0 0" }}>
@@ -108,15 +108,15 @@ export default function BudgetPage() {
 
           <div className="row" style={{ marginTop: 10 }}>
             <span className="k">Engagé (devis signés)</span>
-            <span className="v num">{budget ? euros(budget.engageTotal) : "—"}</span>
+            <span className="v num">{budget ? euros(budget.engageTotal) : "…"}</span>
           </div>
           <div className="row">
             <span className="k">Retenu (devis choisis, non signés)</span>
-            <span className="v num">{budget ? euros(budget.retenuTotal) : "—"}</span>
+            <span className="v num">{budget ? euros(budget.retenuTotal) : "…"}</span>
           </div>
           <div className="row">
             <span className="k">Estimé (lots sans devis)</span>
-            <span className="v num">{budget ? euros(budget.estimeTotal) : "—"}</span>
+            <span className="v num">{budget ? euros(budget.estimeTotal) : "…"}</span>
           </div>
         </div>
 
@@ -130,15 +130,15 @@ export default function BudgetPage() {
           </div>
           <div className="legend">
             <span>
-              <i className="dot" /> Payé — {budget ? euros(budget.paye) : "—"}
+              <i className="dot" /> Payé : {budget ? euros(budget.paye) : "…"}
             </span>
             <span>
-              <i className="dot light" /> Engagé restant à payer —{" "}
-              {budget ? euros(Math.max(0, budget.engageTotal - budget.paye)) : "—"}
+              <i className="dot light" /> Engagé restant à payer :{" "}
+              {budget ? euros(Math.max(0, budget.engageTotal - budget.paye)) : "…"}
             </span>
             <span>
-              <i className="dot track" /> Budget contractuel —{" "}
-              {budget ? euros(budget.budgetContractuel) : "—"}
+              <i className="dot track" /> Budget contractuel :{" "}
+              {budget ? euros(budget.budgetContractuel) : "…"}
             </span>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function BudgetPage() {
           {budget && budget.aSurveiller.length > 0 && (
             <p className="lead">
               Ces entreprises ont facturé plus que ce qu&apos;elles ont signé, sans avenant
-              validé pour couvrir l&apos;écart — à éclaircir avant de payer.
+              validé pour couvrir l&apos;écart : à éclaircir avant de payer.
             </p>
           )}
           {budget?.aSurveiller.map((l) => (
@@ -168,7 +168,7 @@ export default function BudgetPage() {
               <div className="t">
                 <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span className="avatar">{initiale(l.entreprise || l.nom)}</span>
-                  {l.nom} <span className="sub">— {l.entreprise}</span>
+                  {l.nom} <span className="sub">· {l.entreprise}</span>
                 </span>
                 <span className="num bad">{euros(l.ecart)}</span>
               </div>
@@ -187,7 +187,7 @@ export default function BudgetPage() {
             {budget.decennaleAReclamer.length > 0 && (
               <>
                 <p className="lead" style={{ marginBottom: 6 }}>
-                  Réclame l&apos;attestation de ces entreprises avant de signer avec elles —
+                  Réclame l&apos;attestation de ces entreprises avant de signer avec elles :
                   après, tu perds ton pouvoir de négociation.
                 </p>
                 <p className="sub">À réclamer ou à renouveler</p>

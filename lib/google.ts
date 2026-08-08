@@ -38,7 +38,7 @@ export async function accessToken(): Promise<string> {
 export function requireConfigured() {
   if (!isConfigured()) {
     throw new AppError(
-      "L'accès Google n'est pas encore configuré. Renseignez les identifiants dans l'hébergement.",
+      "La connexion au chantier n'est pas encore établie. Renseigne les identifiants dans l'hébergement.",
       503,
     );
   }

@@ -246,7 +246,7 @@ export function alerteDepassement(
     engage,
     facture,
     ecart,
-    message: `${entreprise} a facturé ${euros(facture)} pour un marché de ${euros(engage)}. Écart de ${euros(ecart)} sans avenant validé.`,
+    message: `${entreprise} a facturé ${euros(facture)} pour un devis signé de ${euros(engage)}. Écart de ${euros(ecart)} sans avenant validé.`,
   };
 }
 

@@ -324,7 +324,7 @@ export default function FicheLotPage() {
                     <div className="t">
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span className="avatar">{(d.entreprise.trim()[0] || "?").toUpperCase()}</span>
-                        {d.entreprise} <span className="sub">— {d.id}</span>
+                        {d.entreprise} <span className="sub">· {d.id}</span>
                       </span>
                       <span className="num">{euros(d.ttc)}</span>
                     </div>
@@ -375,7 +375,7 @@ export default function FicheLotPage() {
                           />
                           {fichiersSignature[d.id]
                             ? `Document joint : ${fichiersSignature[d.id]!.name}`
-                            : "Joindre le devis signé (PDF ou photo) — optionnel"}
+                            : "Joindre le devis signé (PDF ou photo, optionnel)"}
                         </label>
                         <button
                           className="btn sec"
@@ -419,7 +419,7 @@ export default function FicheLotPage() {
                     <div className="check" key={d.id} onClick={() => prevenir(d.id)} style={{ cursor: "pointer" }}>
                       <span className="box" />
                       <span>
-                        {d.entreprise} — {d.id}
+                        {d.entreprise} · {d.id}
                       </span>
                     </div>
                   ))}
@@ -454,7 +454,7 @@ export default function FicheLotPage() {
                 <div className="item" key={f.id}>
                   <div className="t">
                     <span>
-                      {f.nature} <span className="sub">— {f.id}</span>
+                      {f.nature} <span className="sub">· {f.id}</span>
                     </span>
                     <span className="num">{euros(f.montantTTC)}</span>
                   </div>

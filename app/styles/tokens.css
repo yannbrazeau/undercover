@@ -1,39 +1,29 @@
-/* tokens.css — direction « Graphite ». Seule déclaration de couleurs, de police
-   et de tailles. Aucune valeur hexadécimale ne doit apparaître ailleurs. */
+/* tokens.css — direction « Graphite », fixée au cahier de conception §2.
+   Seule déclaration de couleurs, de police et de tailles. Aucune valeur
+   hexadécimale ne doit apparaître ailleurs. Intégralement en mode clair :
+   pas de bandeau sombre, l'accent reste la seule couleur franche. */
 
 :root {
-  /* Palette — anthracite chaud, bleu acier, gris à peine tiédis (famille
-     « stone », pas « zinc ») : moins clinique qu'un gris pur, sans verser
-     dans le beige. Les teintes sémantiques (danger/attention/favorable)
-     sont nettes : c'est ce qui doit sauter aux yeux quand quelque chose
-     presse. */
-  --dark: #292524; /* bandeau d'en-tête, barre de scénario */
-  --ink: #1c1917; /* texte courant */
-  --muted: #78716c; /* texte secondaire */
-  --faint: #a8a29e; /* sur-intitulés, mentions discrètes */
-  --line: #e7e4e1; /* filets */
-  --bg: #f9f7f6; /* fond de page */
+  --dark: #27272a; /* réservé aux rares aplats fonciers, plus le bandeau d'en-tête */
+  --ink: #18181b; /* texte courant */
+  --muted: #71717a; /* texte secondaire */
+  --faint: #a1a1aa; /* sur-intitulés, mentions discrètes */
+  --line: #e4e4e7; /* filets de carte */
+  --line-strong: #d4d4d8; /* bordure de champ, plus marquée qu'un simple filet */
+  --bg: #f7f7f8; /* fond de page */
   --surface: #ffffff; /* cartes */
-  --accent: #2f66c9; /* action principale, liens, barres */
-  --accent-soft: #e8f0fc; /* fonds de blocs informatifs */
-  --danger: #d1373a; /* dépassement, alerte */
-  --danger-soft: #fbe6e6;
-  --warn: #c9821c; /* attention, en attente */
-  --warn-soft: #fbeed9;
-  --ok: #1f8a55; /* montant favorable */
-  --ok-soft: #e3f5eb;
+  --accent: #3f6ea8; /* action principale, liens, barres — éteint volontairement */
+  --accent-press: #33587f; /* état pressé/actif d'un élément accentué */
+  --accent-soft: #eef3f8; /* fonds de blocs informatifs */
+  --danger: #a13c3c; /* dépassement, alerte — désaturé à dessein, un constat pas un cri */
+  --danger-soft: #f9eeee;
+  --warn: #7a6234; /* attention, en attente — désaturé */
+  --warn-soft: #f6f1e6;
+  --ok: #2f6b4f; /* montant favorable */
+  --ok-soft: #eaf3ee;
 
-  --shadow: 0 1px 3px color-mix(in srgb, var(--ink) 10%, transparent),
-    0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
-  --shadow-lg: 0 16px 32px color-mix(in srgb, var(--ink) 16%, transparent),
-    0 2px 8px color-mix(in srgb, var(--ink) 8%, transparent);
-  /* Halo doux derrière un moment fort (le chiffre du Budget, une présence
-     humaine) — jamais un aplat, toujours un dégradé qui s'efface vite. */
-  --halo: radial-gradient(
-    120% 160% at 18% -30%,
-    color-mix(in srgb, var(--accent) 22%, transparent),
-    transparent 60%
-  );
+  /* Ombres rares et neutres : par défaut, aucune, un filet suffit à séparer. */
+  --shadow: none;
 
   /* Police unique, sans-serif du système — aucun chargement */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,

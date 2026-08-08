@@ -1,12 +1,14 @@
 /* screens.css — spécificités des écrans. S'étoffe écran par écran. */
 
-/* Barre de scénario permanente (écran Lots) */
+/* Barre de dépense prévue, fixe en haut de l'écran Lots — claire, séparée
+   du contenu par un filet, jamais un bandeau sombre. */
 .sticky {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--dark);
-  color: var(--surface);
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
   padding: 11px 16px;
   display: flex;
   justify-content: space-between;
@@ -14,7 +16,7 @@
 }
 .sticky .l {
   font-size: var(--fs-secondary);
-  color: var(--faint);
+  color: var(--muted);
 }
 .sticky .r {
   font-size: 20px;
@@ -115,7 +117,7 @@
 
 /* Écran Ajouter : dépôt de fichier + chips de choix */
 .drop {
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
   background: var(--surface);
   text-align: center;
@@ -144,7 +146,7 @@
   font-size: var(--fs-secondary);
   padding: 10px 0;
   border-radius: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--muted);
 }

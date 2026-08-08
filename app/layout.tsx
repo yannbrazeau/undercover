@@ -6,13 +6,13 @@ import Nav from "@/components/Nav";
 
 export const metadata: Metadata = {
   title: "Pilotage chantier HMP",
-  description: "Suivi du chantier — budget, factures, paiements.",
+  description: "Suivi du chantier : budget, factures, paiements.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#153b32",
+  themeColor: "#f7f7f8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

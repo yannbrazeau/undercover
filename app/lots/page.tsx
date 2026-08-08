@@ -112,7 +112,7 @@ export default function LotsPage() {
     <>
       <ScreenHeader eyebrow={`${lots.length} lots`} title="Lots" />
       <div className="sticky">
-        <span className="l">Dépense prévue · il vous reste</span>
+        <span className="l">Dépense prévue · il te reste</span>
         <span className="r">
           {configured ? (
             <>
@@ -123,7 +123,7 @@ export default function LotsPage() {
               </span>
             </>
           ) : (
-            "—"
+            "…"
           )}
         </span>
       </div>
@@ -139,52 +139,6 @@ export default function LotsPage() {
 
         {configured === false && (
           <div className="info">La liste des lots demande la connexion Google.</div>
-        )}
-
-        {!ajoutOuvert && (
-          <button className="btn sec" style={{ marginBottom: 14 }} onClick={() => setAjoutOuvert(true)}>
-            Ajouter un lot
-          </button>
-        )}
-
-        {ajoutOuvert && (
-          <div className="card">
-            <h4>Nouveau lot</h4>
-            {erreurCreation && (
-              <div className="alert">
-                <b>La création n&apos;a pas abouti</b>
-                <span>{erreurCreation}</span>
-              </div>
-            )}
-            <label>Nom</label>
-            <input
-              className="field"
-              placeholder="Panneaux solaires"
-              value={nouveauNom}
-              onChange={(e) => setNouveauNom(e.target.value)}
-            />
-            <label>Budget TTC estimé</label>
-            <input
-              className="field"
-              inputMode="decimal"
-              placeholder="0,00 €"
-              value={nouveauBudget}
-              onChange={(e) => setNouveauBudget(e.target.value)}
-            />
-            <label>Périmètre</label>
-            <input
-              className="field"
-              placeholder="Ce que couvre le lot"
-              value={nouveauPerimetre}
-              onChange={(e) => setNouveauPerimetre(e.target.value)}
-            />
-            <div className="choice" style={{ marginBottom: 0 }}>
-              <span onClick={() => setAjoutOuvert(false)}>Annuler</span>
-              <span className="on" onClick={creerLot}>
-                {creation ? "Création…" : "Créer le lot"}
-              </span>
-            </div>
-          </div>
         )}
 
         {vue === "liste" && (
@@ -218,13 +172,61 @@ export default function LotsPage() {
             )}
           </>
         )}
+
+        <div style={{ marginTop: 20 }}>
+          {!ajoutOuvert ? (
+            <span
+              onClick={() => setAjoutOuvert(true)}
+              style={{ color: "var(--accent)", fontSize: "var(--fs-secondary)", cursor: "pointer" }}
+            >
+              Ajouter un lot
+            </span>
+          ) : (
+            <div className="card">
+              <h4>Nouveau lot</h4>
+              {erreurCreation && (
+                <div className="alert">
+                  <b>La création n&apos;a pas abouti</b>
+                  <span>{erreurCreation}</span>
+                </div>
+              )}
+              <label>Nom</label>
+              <input
+                className="field"
+                placeholder="Panneaux solaires"
+                value={nouveauNom}
+                onChange={(e) => setNouveauNom(e.target.value)}
+              />
+              <label>Budget TTC estimé</label>
+              <input
+                className="field"
+                inputMode="decimal"
+                placeholder="0,00 €"
+                value={nouveauBudget}
+                onChange={(e) => setNouveauBudget(e.target.value)}
+              />
+              <label>Périmètre</label>
+              <input
+                className="field"
+                placeholder="Ce que couvre le lot"
+                value={nouveauPerimetre}
+                onChange={(e) => setNouveauPerimetre(e.target.value)}
+              />
+              <div className="choice" style={{ marginBottom: 0 }}>
+                <span onClick={() => setAjoutOuvert(false)}>Annuler</span>
+                <span className="on" onClick={creerLot}>
+                  {creation ? "Création…" : "Créer le lot"}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
 }
 
 function LigneLot({ lot }: { lot: LotItem }) {
-  const fraction = lot.engage > 0 ? Math.min(100, Math.round((lot.paye / lot.engage) * 100)) : 0;
   return (
     <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
       <div className="t">
@@ -242,7 +244,7 @@ function LigneLot({ lot }: { lot: LotItem }) {
         {lot.entreprise || "aucune entreprise retenue"} · {lot.nbDevis} devis · {lot.etat}
       </div>
       <div className="bar" style={{ margin: "8px 0 0" }}>
-        <i style={{ width: `${fraction}%` }} />
+        <i style={{ width: `${Math.max(0, Math.min(100, lot.avancementPct))}%` }} />
       </div>
     </Link>
   );

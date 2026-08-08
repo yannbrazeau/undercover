@@ -9,7 +9,6 @@ import {
   getEntreprises,
   getProjet,
   devisEngage,
-  devisCompteScenario,
   resolveEntrepriseForLot,
   engageLot,
   factureCumulLot,
@@ -23,9 +22,13 @@ export const dynamic = "force-dynamic";
 
 type Etat = "aucun devis" | "à choisir" | "en cours" | "terminé";
 
-function etatLot(nbDevis: number, signe: boolean, choisi: boolean, avancementPct: number): Etat {
+// « En cours » ne veut dire qu'une chose : un devis est signé, le chantier
+// est engagé sur ce lot. Un devis simplement retenu reste « à choisir » —
+// la décision finale (signer) n'est pas encore prise. Sans ça, « en cours »
+// s'affichait sur presque tous les lots et ne distinguait plus rien.
+function etatLot(nbDevis: number, signe: boolean, avancementPct: number): Etat {
   if (nbDevis === 0) return "aucun devis";
-  if (signe || choisi) return avancementPct >= 100 ? "terminé" : "en cours";
+  if (signe) return avancementPct >= 100 ? "terminé" : "en cours";
   return "à choisir";
 }
 
@@ -64,12 +67,7 @@ export async function GET() {
       const ecartBudget = round2(depense.montant - lot.BUDGET_TTC);
       const entreprise = resolveEntrepriseForLot(lot.LOT_UUID, devis).nom;
 
-      const etat = etatLot(
-        devisDuLot.length,
-        devisDuLot.some(devisEngage),
-        devisDuLot.some(devisCompteScenario),
-        lot.AVANCEMENT_PCT,
-      );
+      const etat = etatLot(devisDuLot.length, devisDuLot.some(devisEngage), lot.AVANCEMENT_PCT);
 
       return {
         lotUuid: lot.LOT_UUID,

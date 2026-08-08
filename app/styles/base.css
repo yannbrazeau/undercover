@@ -42,18 +42,18 @@ body {
   padding: var(--pad);
 }
 
-/* En-tête d'écran — bandeau anthracite, sur-intitulé discret, titre sobre. */
+/* En-tête d'écran — intégralement clair, séparé du contenu par un filet.
+   Jamais de bandeau sombre : l'outil sert entièrement à prendre du recul. */
 .top {
-  background: var(--dark);
-  color: var(--surface);
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
   padding: 18px 16px 16px;
 }
 .top .eyebrow {
-  color: var(--faint);
-  font-size: var(--fs-badge);
-  font-weight: 500;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: var(--fs-secondary);
+  font-weight: 400;
   margin: 0 0 4px;
 }
 .top h1 {
@@ -94,34 +94,10 @@ h2 {
   flex: 0 0 auto;
 }
 
-/* Carte mise en avant — le chiffre que l'utilisateur vient chercher en premier.
-   Un halo doux, pas un aplat : la chaleur vient du dégradé qui s'efface. */
-.card.hero {
-  position: relative;
-  overflow: hidden;
-  box-shadow: var(--shadow-lg);
-  border-top: 3px solid var(--accent);
-}
-.card.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 200px;
-  background: var(--halo);
-  pointer-events: none;
-}
-.card.hero > * {
-  position: relative;
-}
-.card.hero.depasse {
-  border-top-color: var(--danger);
-}
-.card.hero.depasse::before {
-  background: radial-gradient(
-    120% 160% at 18% -30%,
-    color-mix(in srgb, var(--danger) 20%, transparent),
-    transparent 60%
-  );
+/* Le chiffre principal vit sur le canvas, pas dans une carte : ce qui compte
+   le plus n'a pas besoin d'être encadré pour être vu (cahier §2, Composition). */
+.hero {
+  margin-bottom: 4px;
 }
 
 /* Phrase d'intention sous un titre de section — dit à quoi ça sert, pas juste ce que c'est. */
@@ -170,13 +146,13 @@ h2 {
   color: var(--danger);
 }
 
-/* Boutons — annoncent une action (verbe), jamais un état. Un léger dégradé
-   au lieu d'un aplat : la même retenue que la carte hero. */
+/* Boutons — annoncent une action (verbe), jamais un état. Un aplat net,
+   pas de dégradé : l'accent sert à désigner l'action, pas à décorer. */
 .btn {
   display: block;
   width: 100%;
   text-align: center;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, white), var(--accent));
+  background: var(--accent);
   color: var(--surface);
   border: 0;
   border-radius: 10px;
@@ -186,7 +162,9 @@ h2 {
   font-family: inherit;
   margin-top: 4px;
   cursor: pointer;
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.btn:active {
+  background: var(--accent-press);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -195,7 +173,7 @@ h2 {
 .btn.sec {
   background: var(--surface);
   color: var(--accent);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
 }
 .btn.danger {
   background: var(--surface);
@@ -215,7 +193,7 @@ label {
 .field {
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 10px;
   padding: 12px;
   font-size: var(--fs-body);
@@ -248,17 +226,16 @@ label {
 }
 
 /* Présence humaine — une entreprise, une personne, jamais une simple ligne
-   de texte anonyme. Halo doux, initiale, jamais une photo générique. */
+   de texte anonyme. Une initiale, jamais une photo générique. */
 .avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
+  background: var(--accent-soft);
   color: var(--accent);
   font-size: 12px;
   font-weight: var(--w-bold);
