@@ -31,7 +31,8 @@ function parseFr(s: string): Date | null {
 export default function LotsPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [lots, setLots] = useState<LotItem[]>([]);
-  const [scenario, setScenario] = useState(0);
+  const [depensePrevue, setDepensePrevue] = useState(0);
+  const [ilVousReste, setIlVousReste] = useState(0);
   const [budgetContractuel, setBudgetContractuel] = useState(0);
   const [vue, setVue] = useState<"liste" | "chronologie">("liste");
   const [recherche, setRecherche] = useState("");
@@ -50,7 +51,8 @@ export default function LotsPage() {
         setConfigured(status === 200);
         if (status === 200) {
           setLots(d.lots ?? []);
-          setScenario(d.scenario ?? 0);
+          setDepensePrevue(d.depensePrevue ?? 0);
+          setIlVousReste(d.ilVousReste ?? 0);
           setBudgetContractuel(d.budgetContractuel ?? 0);
         }
       })
@@ -90,8 +92,6 @@ export default function LotsPage() {
     }
   }, [nouveauNom, nouveauBudget, nouveauPerimetre, charger]);
 
-  const ecartScenario = scenario - budgetContractuel;
-
   const lotsFiltres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
     if (!q) return lots;
@@ -112,14 +112,14 @@ export default function LotsPage() {
     <>
       <ScreenHeader eyebrow={`${lots.length} lots`} title="Lots" />
       <div className="sticky">
-        <span className="l">Scénario · écart au budget</span>
+        <span className="l">Dépense prévue · il vous reste</span>
         <span className="r">
           {configured ? (
             <>
-              {euros(scenario)}{" "}
-              <span style={{ color: ecartScenario > 0 ? "var(--danger)" : "var(--ok)" }}>
-                {ecartScenario > 0 ? "+" : ""}
-                {euros(ecartScenario)}
+              {euros(depensePrevue)}{" "}
+              <span style={{ color: ilVousReste < 0 ? "var(--danger)" : "var(--ok)" }}>
+                {ilVousReste < 0 ? "" : "+"}
+                {euros(ilVousReste)}
               </span>
             </>
           ) : (
@@ -229,10 +229,14 @@ function LigneLot({ lot }: { lot: LotItem }) {
     <Link href={`/lots/${lot.lotUuid}`} className="item" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
       <div className="t">
         <span>{lot.nom}</span>
-        <span className={`num ${lot.ecartBudget > 0.01 ? "bad" : "good"}`}>
-          {lot.ecartBudget > 0 ? "+" : ""}
-          {euros(lot.ecartBudget)}
-        </span>
+        {lot.budget > 0 ? (
+          <span className={`num ${lot.ecartBudget > 0.01 ? "bad" : "good"}`}>
+            {lot.ecartBudget > 0 ? "+" : ""}
+            {euros(lot.ecartBudget)}
+          </span>
+        ) : (
+          <span className="sub">budget non renseigné</span>
+        )}
       </div>
       <div className="m">
         {lot.entreprise || "aucune entreprise retenue"} · {lot.nbDevis} devis · {lot.etat}

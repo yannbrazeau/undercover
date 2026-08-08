@@ -333,10 +333,14 @@ export default function FicheLotPage() {
                       {d.eligibleSignature && d.decennale !== "valide" && (
                         <span className="pill warn">décennale {d.decennale}</span>
                       )}{" "}
-                      <span className={ecart > 0.01 ? "bad" : "good"}>
-                        {ecart > 0 ? "+" : ""}
-                        {euros(ecart)} vs budget du lot
-                      </span>
+                      {fiche.lot.budget > 0 ? (
+                        <span className={ecart > 0.01 ? "bad" : "good"}>
+                          {ecart > 0 ? "+" : ""}
+                          {euros(ecart)} vs budget du lot
+                        </span>
+                      ) : (
+                        <span className="sub">budget du lot non renseigné</span>
+                      )}
                       {d.driveUrl && (
                         <>
                           {" · "}

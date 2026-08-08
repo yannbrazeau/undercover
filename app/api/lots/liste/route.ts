@@ -6,15 +6,15 @@ import {
   getAvenants,
   getFactures,
   getPaiements,
+  getEntreprises,
   getProjet,
   devisEngage,
   devisCompteScenario,
   resolveEntrepriseForLot,
   engageLot,
   factureCumulLot,
-  scenarioTotal,
 } from "@/lib/sheets";
-import { depensePrevueLot } from "@/lib/budget";
+import { depensePrevueLot, computeBudget } from "@/lib/budget";
 import { round2 } from "@/lib/facture";
 import { norm } from "@/lib/format";
 
@@ -29,17 +29,20 @@ function etatLot(nbDevis: number, signe: boolean, choisi: boolean, avancementPct
   return "à choisir";
 }
 
-// Barre de scénario permanente + une ligne par lot pour l'écran Lots
-// (vue liste et vue chronologie consomment la même donnée).
+// Barre fixe de dépense prévue + une ligne par lot pour l'écran Lots (vue
+// liste et vue chronologie consomment la même donnée). Le total et l'écart
+// viennent de computeBudget(), le même calcul que l'écran Budget — un seul
+// moteur, jamais deux chiffres différents pour la même question.
 export async function GET() {
   try {
     requireConfigured();
-    const [lots, devis, avenants, factures, paiements, projet] = await Promise.all([
+    const [lots, devis, avenants, factures, paiements, entreprises, projet] = await Promise.all([
       getLots(),
       getDevis(),
       getAvenants(),
       getFactures(),
       getPaiements(),
+      getEntreprises(),
       getProjet(),
     ]);
 
@@ -86,9 +89,21 @@ export async function GET() {
       };
     });
 
+    const budget = computeBudget({
+      lots,
+      devis,
+      avenants,
+      factures,
+      paiements,
+      entreprises,
+      projet,
+      aujourdHui: new Date(),
+    });
+
     return NextResponse.json({
       lots: items,
-      scenario: scenarioTotal(devis),
+      depensePrevue: budget.depensePrevue,
+      ilVousReste: budget.ilVousReste,
       budgetContractuel: round2(projet.budgetContractuel),
     });
   } catch (e) {
