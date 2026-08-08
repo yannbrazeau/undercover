@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireConfigured, AppError } from "@/lib/google";
-import { createUploadSession, createUploadSessionEntreprise } from "@/lib/drive";
+import { createUploadSession, createUploadSessionEntreprise, createUploadSessionProjet } from "@/lib/drive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,14 +15,19 @@ export async function POST(req: Request) {
     const body = await req.json();
     const lotUuid = String(body.lotUuid ?? "").trim();
     const entrepriseId = String(body.entrepriseId ?? "").trim();
+    const projet = Boolean(body.projet);
     const fileName = String(body.fileName ?? "").trim() || "document";
     const mimeType = String(body.mimeType ?? "application/octet-stream");
 
-    if (!lotUuid && !entrepriseId) throw new AppError("Lot ou entreprise manquant pour le dépôt du fichier.");
+    if (!lotUuid && !entrepriseId && !projet) {
+      throw new AppError("Lot, entreprise ou projet manquant pour le dépôt du fichier.");
+    }
 
-    const sessionUri = entrepriseId
-      ? await createUploadSessionEntreprise(entrepriseId, fileName, mimeType)
-      : await createUploadSession(lotUuid, fileName, mimeType);
+    const sessionUri = projet
+      ? await createUploadSessionProjet(fileName, mimeType)
+      : entrepriseId
+        ? await createUploadSessionEntreprise(entrepriseId, fileName, mimeType)
+        : await createUploadSession(lotUuid, fileName, mimeType);
     return NextResponse.json({ sessionUri });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;

@@ -130,3 +130,10 @@ export async function createUploadSessionEntreprise(
   const folderId = await ensureEntrepriseFolder(entrepriseId);
   return ouvrirSessionEnvoi(folderId, fileName, mimeType);
 }
+
+/** Même chose, pour un document de niveau projet (contrat dommages-ouvrage). */
+export async function createUploadSessionProjet(fileName: string, mimeType: string): Promise<string> {
+  const folderId = config().lotsParentId;
+  if (!folderId) throw new Error("Dossier racine non configuré.");
+  return ouvrirSessionEnvoi(folderId, fileName, mimeType);
+}

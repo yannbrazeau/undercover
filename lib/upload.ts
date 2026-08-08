@@ -79,3 +79,8 @@ export async function envoyerDocument(lotUuid: string, file: File): Promise<stri
 export async function envoyerDocumentEntreprise(entrepriseId: string, file: File): Promise<string> {
   return envoyerVers({ entrepriseId }, file);
 }
+
+/** Même chose, pour un document de niveau projet (contrat dommages-ouvrage). */
+export async function envoyerDocumentProjet(file: File): Promise<string> {
+  return envoyerVers({ projet: true }, file);
+}

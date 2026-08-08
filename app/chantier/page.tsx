@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
 import { euros } from "@/lib/format";
+import { envoyerDocumentProjet } from "@/lib/upload";
 
 type EtatDecennale = "à réclamer" | "valide" | "valide sous réserve" | "à renouveler";
 
@@ -61,6 +62,7 @@ export default function ChantierPage() {
   const [doOuvert, setDoOuvert] = useState(false);
   const [assureur, setAssureur] = useState("");
   const [dateEffet, setDateEffet] = useState("");
+  const [documentDo, setDocumentDo] = useState<File | null>(null);
   const [enregistrementDo, setEnregistrementDo] = useState(false);
 
   const charger = useCallback(() => {
@@ -106,24 +108,26 @@ export default function ChantierPage() {
     setError("");
     setMessage("");
     try {
+      const driveUrl = documentDo ? await envoyerDocumentProjet(documentDo) : "";
       const res = await fetch("/api/chantier/dommages-ouvrage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assureur, dateEffet }),
+        body: JSON.stringify({ assureur, dateEffet, driveUrl }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "L'enregistrement a échoué.");
-      setMessage("Contrat dommages-ouvrage enregistré.");
+      setMessage(`Contrat dommages-ouvrage enregistré${driveUrl ? ", document joint" : ""}.`);
       setDoOuvert(false);
       setAssureur("");
       setDateEffet("");
+      setDocumentDo(null);
       charger();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setEnregistrementDo(false);
     }
-  }, [assureur, dateEffet, charger]);
+  }, [assureur, dateEffet, documentDo, charger]);
 
   if (configured === false) {
     return (
@@ -248,8 +252,17 @@ export default function ChantierPage() {
                   <input className="field" value={assureur} onChange={(e) => setAssureur(e.target.value)} placeholder="Nom de l'assureur" />
                   <label>Date d&apos;effet</label>
                   <input className="field" type="date" value={dateEffet} onChange={(e) => setDateEffet(e.target.value)} />
+                  <label style={{ display: "block", cursor: "pointer" }}>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      hidden
+                      onChange={(e) => setDocumentDo(e.target.files?.[0] ?? null)}
+                    />
+                    {documentDo ? `Document joint : ${documentDo.name}` : "Joindre l'attestation (PDF ou photo, optionnel)"}
+                  </label>
                   <button className="btn" disabled={!assureur.trim() || !dateEffet || enregistrementDo} onClick={enregistrerDo}>
-                    {enregistrementDo ? "Enregistrement…" : "Enregistrer le contrat"}
+                    {enregistrementDo ? (documentDo ? "Envoi du document…" : "Enregistrement…") : "Enregistrer le contrat"}
                   </button>
                   <button type="button" className="destroy" onClick={() => setDoOuvert(false)}>
                     Annuler
