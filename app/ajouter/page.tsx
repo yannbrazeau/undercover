@@ -61,11 +61,13 @@ const KINDS = [
   { key: "facture", label: "Facture", Icon: IconFacture, disponible: true },
   { key: "paiement", label: "Paiement", Icon: IconPaiement, disponible: true },
   { key: "avenant", label: "Avenant", Icon: IconAvenant, disponible: true },
-  { key: "devis", label: "Devis", Icon: IconDevis, disponible: false },
+  { key: "devis", label: "Devis", Icon: IconDevis, disponible: true },
   { key: "photo", label: "Photo", Icon: IconPhoto, disponible: false },
   { key: "autre", label: "Autre", Icon: IconAutre, disponible: false },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
+
+type EntrepriseOption = { id: string; nom: string; activite: string };
 
 function num(s: string): number {
   const n = parseFloat(String(s).replace(",", "."));
@@ -76,6 +78,7 @@ export default function AjouterPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [lots, setLots] = useState<LotOption[]>([]);
   const [facturesOuvertes, setFacturesOuvertes] = useState<FactureOuverte[]>([]);
+  const [entreprises, setEntreprises] = useState<EntrepriseOption[]>([]);
 
   const [kind, setKind] = useState<Kind>("facture");
 
@@ -97,6 +100,10 @@ export default function AjouterPage() {
   const [avenantDescription, setAvenantDescription] = useState("");
   const [avenantMontant, setAvenantMontant] = useState("");
 
+  // Devis
+  const [entrepriseIdDevis, setEntrepriseIdDevis] = useState("");
+  const [montantDevisTTC, setMontantDevisTTC] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
@@ -106,14 +113,18 @@ export default function AjouterPage() {
     Promise.all([
       fetch("/api/lots", { cache: "no-store" }).then((r) => r.json().then((d) => ({ status: r.status, d }))),
       fetch("/api/factures", { cache: "no-store" }).then((r) => r.json().then((d) => ({ status: r.status, d }))),
+      fetch("/api/entreprises", { cache: "no-store" }).then((r) => r.json().then((d) => ({ status: r.status, d }))),
     ])
-      .then(([lotsRes, facRes]) => {
+      .then(([lotsRes, facRes, entRes]) => {
         setConfigured(lotsRes.status === 200);
         if (lotsRes.status === 200) {
           setLots(lotsRes.d.lots ?? []);
           if (lotsRes.d.defaults?.tauxRetenue != null) setTauxRetenue(String(lotsRes.d.defaults.tauxRetenue));
         }
         if (facRes.status === 200) setFacturesOuvertes(facRes.d.factures ?? []);
+        if (entRes.status === 200) {
+          setEntreprises((entRes.d.entreprises ?? []).map((e: { id: string; nom: string; activite: string }) => e));
+        }
       })
       .catch(() => setConfigured(false));
   }, []);
@@ -130,7 +141,7 @@ export default function AjouterPage() {
     const lotParam = qs.get("lot");
     const kindParam = qs.get("kind");
     if (lotParam) setLotUuid(lotParam);
-    if (kindParam === "facture" || kindParam === "paiement" || kindParam === "avenant") {
+    if (kindParam === "facture" || kindParam === "paiement" || kindParam === "avenant" || kindParam === "devis") {
       setKind(kindParam);
     }
   }, []);
@@ -164,10 +175,13 @@ export default function AjouterPage() {
   };
 
   const montantAvenant = num(avenantMontant);
+  const ttcDevis = num(montantDevisTTC);
   const canSubmitFacture = configured === true && !!lotUuid && ttc > 0 && !submitting;
   const canSubmitPaiement = configured === true && !!factureId && montantRegle > 0 && !submitting;
   const canSubmitAvenant =
     configured === true && !!lotUuid && !!avenantDescription.trim() && montantAvenant !== 0 && !submitting;
+  const canSubmitDevis =
+    configured === true && !!lotUuid && !!entrepriseIdDevis && ttcDevis > 0 && !submitting;
   const canSubmit =
     kind === "facture"
       ? canSubmitFacture
@@ -175,7 +189,9 @@ export default function AjouterPage() {
         ? canSubmitPaiement
         : kind === "avenant"
           ? canSubmitAvenant
-          : false;
+          : kind === "devis"
+            ? canSubmitDevis
+            : false;
 
   const submitFacture = useCallback(async () => {
     const driveUrl = file ? await envoyerDocument(lotUuid, file) : "";
@@ -223,6 +239,29 @@ export default function AjouterPage() {
     setAvenantMontant("");
   }, [lotUuid, avenantDescription, montantAvenant]);
 
+  const submitDevis = useCallback(async () => {
+    const driveUrl = file ? await envoyerDocument(lotUuid, file) : "";
+
+    const res = await fetch("/api/devis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lotUuid,
+        entrepriseId: entrepriseIdDevis,
+        ttc: ttcDevis,
+        driveUrl,
+      }),
+    });
+    const json = await readJson(res);
+    if (!res.ok) throw new Error(String(json.error) || "L'enregistrement a échoué.");
+
+    const dev = json.devis as { DEVIS_ID?: string } | undefined;
+    setDone(`Devis ${dev?.DEVIS_ID ?? ""} enregistré. Il apparaît dans le lot, prêt à comparer.`);
+    setEntrepriseIdDevis("");
+    setMontantDevisTTC("");
+    clearFile();
+  }, [file, lotUuid, entrepriseIdDevis, ttcDevis]);
+
   const submitPaiement = useCallback(async () => {
     const res = await fetch("/api/paiements", {
       method: "POST",
@@ -256,6 +295,7 @@ export default function AjouterPage() {
       if (kind === "facture") await submitFacture();
       else if (kind === "paiement") await submitPaiement();
       else if (kind === "avenant") await submitAvenant();
+      else if (kind === "devis") await submitDevis();
       chargerListes();
     } catch (e) {
       setError((e as Error).message);
@@ -263,7 +303,7 @@ export default function AjouterPage() {
       setSubmitting(false);
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [kind, submitFacture, submitPaiement, submitAvenant, chargerListes]);
+  }, [kind, submitFacture, submitPaiement, submitAvenant, submitDevis, chargerListes]);
 
   const kindActuel = KINDS.find((k) => k.key === kind)!;
 
@@ -285,7 +325,7 @@ export default function AjouterPage() {
           </div>
         )}
 
-        {kindActuel.disponible && (kind === "facture" || kind === "avenant") && (
+        {kindActuel.disponible && (kind === "facture" || kind === "avenant" || kind === "devis") && (
           <label className="drop">
             <input
               ref={fileRef}
@@ -336,7 +376,7 @@ export default function AjouterPage() {
               <p className="t">Pas encore disponible</p>
               <p className="m">
                 L&apos;ajout de {kindActuel.label.toLowerCase()} n&apos;est pas encore relié au classeur. Utilise
-                Facture, Paiement ou Avenant en attendant.
+                Facture, Paiement, Avenant ou Devis en attendant.
               </p>
             </div>
           </div>
@@ -520,6 +560,71 @@ export default function AjouterPage() {
           </>
         )}
 
+        {kind === "devis" && (
+          <>
+            <p className="lbl">Pour quel lot ?</p>
+            {configured === false ? (
+              <div className="info">
+                La liste des lots demande la connexion Google. Une fois les identifiants en place,
+                elle se remplit toute seule.
+              </div>
+            ) : (
+              <select
+                className="field"
+                value={lotUuid}
+                onChange={(e) => setLotUuid(e.target.value)}
+                aria-label="Pour quel lot"
+              >
+                <option value="">Choisir un lot…</option>
+                {lots.map((l) => (
+                  <option key={l.uuid} value={l.uuid}>
+                    {l.nom}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <p className="lbl">Quelle entreprise ?</p>
+            {configured === false ? (
+              <div className="info">Le répertoire des entreprises demande la connexion Google.</div>
+            ) : entreprises.length === 0 ? (
+              <div className="info">
+                Aucune entreprise répertoriée. Ajoute-la d&apos;abord dans Chantier → Les entreprises.
+              </div>
+            ) : (
+              <select
+                className="field"
+                value={entrepriseIdDevis}
+                onChange={(e) => setEntrepriseIdDevis(e.target.value)}
+                aria-label="Quelle entreprise"
+              >
+                <option value="">Choisir une entreprise…</option>
+                {entreprises.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nom} · {e.activite}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <p className="lbl">Montant TTC</p>
+            <input
+              className="field"
+              inputMode="decimal"
+              placeholder="0,00 €"
+              value={montantDevisTTC}
+              onChange={(e) => setMontantDevisTTC(e.target.value)}
+            />
+
+            {ttcDevis > 0 && (
+              <div className="recap">
+                <p className="t">{euros(ttcDevis)}</p>
+                <p className="m">{lot ? `Sera rangé dans ${lot.nom}, dossier Devis` : "Choisis un lot pour le classement"}</p>
+              </div>
+            )}
+          </>
+        )}
+
         {kindActuel.disponible && (
           <button className="btn" onClick={submit} disabled={!canSubmit}>
             {submitting
@@ -528,7 +633,9 @@ export default function AjouterPage() {
                 ? "Enregistrer le paiement"
                 : kind === "avenant"
                   ? "Enregistrer l'avenant"
-                  : "Enregistrer la facture"}
+                  : kind === "devis"
+                    ? "Enregistrer le devis"
+                    : "Enregistrer la facture"}
           </button>
         )}
       </div>

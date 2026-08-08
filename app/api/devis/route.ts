@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireConfigured, AppError } from "@/lib/google";
-import { getDevis, getLots, getEntreprises, getProjet } from "@/lib/sheets";
+import { getDevis, getLots, getEntreprises, getProjet, addDevis } from "@/lib/sheets";
 import { etatDecennale } from "@/lib/decennale";
 import { norm } from "@/lib/format";
 
@@ -43,6 +43,34 @@ export async function GET() {
       });
 
     return NextResponse.json({ devis: items });
+  } catch (e) {
+    const status = e instanceof AppError ? e.status : 500;
+    return NextResponse.json({ error: (e as Error).message }, { status });
+  }
+}
+
+// Enregistre un devis reçu — point de départ du cycle comparer → choisir → signer.
+export async function POST(req: Request) {
+  try {
+    requireConfigured();
+    const body = await req.json();
+
+    const lotUuid = String(body.lotUuid ?? "").trim();
+    const entrepriseId = String(body.entrepriseId ?? "").trim();
+    const ttc = Number(body.ttc);
+
+    if (!lotUuid) throw new AppError("Choisissez un lot.");
+    if (!entrepriseId) throw new AppError("Choisissez une entreprise.");
+    if (!Number.isFinite(ttc) || ttc <= 0) throw new AppError("Le montant TTC doit être positif.");
+
+    const devis = await addDevis({
+      lotUuid,
+      entrepriseId,
+      ttc,
+      driveUrl: body.driveUrl ? String(body.driveUrl) : undefined,
+    });
+
+    return NextResponse.json({ devis });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;
     return NextResponse.json({ error: (e as Error).message }, { status });

@@ -462,6 +462,44 @@ export async function addFacture(input: NewFacture): Promise<AddFactureResult> {
   return { facture: row, alerte };
 }
 
+export type NewDevis = {
+  lotUuid: string;
+  entrepriseId: string;
+  ttc: number;
+  driveUrl?: string;
+};
+
+/** Enregistre un devis reçu — le point de départ du cycle comparer → choisir → signer. */
+export async function addDevis(input: NewDevis): Promise<Record<string, unknown>> {
+  const [{ headers, rows }, lots, entreprises] = await Promise.all([
+    readTab(TAB.DEVIS),
+    getLots(),
+    getEntreprises(),
+  ]);
+
+  const lot = lots.find((l) => l.LOT_UUID === input.lotUuid);
+  if (!lot) throw new Error("Lot introuvable pour ce devis.");
+  const entreprise = entreprises.find((e) => e.ENTREPRISE_ID === input.entrepriseId);
+  if (!entreprise) throw new Error("Entreprise introuvable pour ce devis.");
+
+  const row: Record<string, unknown> = {
+    DEVIS_ID: nextId("DEV-", rows.map((r) => String(r.DEVIS_ID ?? ""))),
+    LOT_UUID: lot.LOT_UUID,
+    LOT: lot.NOM,
+    ENTREPRISE_ID: entreprise.ENTREPRISE_ID,
+    ENTREPRISE: entreprise.NOM,
+    TTC: input.ttc,
+    STATUT: STATUT_DEVIS.RECU,
+    DATE_SIGNATURE: "",
+    REMPLACE: "",
+    ENTREPRISE_PREVENUE: "",
+    DRIVE_URL: input.driveUrl || "",
+  };
+
+  await appendRow(TAB.DEVIS, headers, row);
+  return row;
+}
+
 export type NewAvenant = {
   lotUuid: string;
   description: string;
