@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ScreenHeader from "@/components/ScreenHeader";
-import { euros, parsePourcentageSaisi } from "@/lib/format";
+import EchoMontant from "@/components/EchoMontant";
+import { euros, parseMontantSaisi, parsePourcentageSaisi } from "@/lib/format";
+import { computeFacture } from "@/lib/facture";
 import { envoyerDocument } from "@/lib/upload";
 
 type DevisItem = {
@@ -13,11 +15,22 @@ type DevisItem = {
   ttc: number;
   statut: string;
   dateSignature: string;
+  dateAnnulation: string;
   driveUrl: string;
   decennale: string;
   entreprisePrevenue: boolean;
   eligibleSignature: boolean;
   eligibleChoix: boolean;
+};
+
+type PaiementItem = {
+  id: string;
+  date: string;
+  montant: number;
+  moyen: string;
+  reference: string;
+  statut: string;
+  dateAnnulation: string;
 };
 
 type FactureItem = {
@@ -29,11 +42,33 @@ type FactureItem = {
   retenueGarantie: number;
   netAPayer: number;
   statut: string;
+  dateAnnulation: string;
   resteDu: number;
   driveUrl: string;
+  paiements: PaiementItem[];
 };
 
-type AvenantItem = { id: string; description: string; montantTTC: number; date: string };
+type AvenantItem = {
+  id: string;
+  description: string;
+  montantTTC: number;
+  date: string;
+  statut: string;
+  dateAnnulation: string;
+};
+
+function estAnnule(statut: string) {
+  return normStatut(statut) === "annule";
+}
+
+type ReserveItem = {
+  id: string;
+  description: string;
+  date: string;
+  statut: string;
+  dateLevee: string;
+  driveUrl: string;
+};
 
 type Fiche = {
   lot: {
@@ -54,6 +89,7 @@ type Fiche = {
   devis: DevisItem[];
   factures: FactureItem[];
   avenants: AvenantItem[];
+  reserves: ReserveItem[];
 };
 
 function normStatut(s: string) {
@@ -120,6 +156,33 @@ export default function FicheLotPage() {
 
   const [fichiersSignature, setFichiersSignature] = useState<Record<string, File | null>>({});
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+
+  // Modification / annulation des écritures — jamais de suppression, un
+  // statut « annulé » et sa date, la ligne reste visible (cahier §5).
+  const [editionAvenantId, setEditionAvenantId] = useState<string | null>(null);
+  const [editAvenantDescription, setEditAvenantDescription] = useState("");
+  const [editAvenantMontant, setEditAvenantMontant] = useState("");
+  const [enregistrementAvenant, setEnregistrementAvenant] = useState(false);
+  const [confirmationAnnulationAvenantId, setConfirmationAnnulationAvenantId] = useState<string | null>(null);
+  const [annulationEnCours, setAnnulationEnCours] = useState<string | null>(null);
+
+  const [editionFactureId, setEditionFactureId] = useState<string | null>(null);
+  const [editFactureMontant, setEditFactureMontant] = useState("");
+  const [editFactureTaux, setEditFactureTaux] = useState("5");
+  const [enregistrementFacture, setEnregistrementFacture] = useState(false);
+  const [confirmationAnnulationFactureId, setConfirmationAnnulationFactureId] = useState<string | null>(null);
+
+  const [editionPaiementId, setEditionPaiementId] = useState<string | null>(null);
+  const [editPaiementMontant, setEditPaiementMontant] = useState("");
+  const [enregistrementPaiement, setEnregistrementPaiement] = useState(false);
+  const [confirmationAnnulationPaiementId, setConfirmationAnnulationPaiementId] = useState<string | null>(null);
+
+  const [editionDevisId, setEditionDevisId] = useState<string | null>(null);
+  const [editDevisMontant, setEditDevisMontant] = useState("");
+  const [enregistrementDevis, setEnregistrementDevis] = useState(false);
+  const [confirmationAnnulationDevisId, setConfirmationAnnulationDevisId] = useState<string | null>(null);
+
+  const [levantEnCours, setLevantEnCours] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     fetch(`/api/lots/${lotUuid}`, { cache: "no-store" })
@@ -296,6 +359,236 @@ export default function FicheLotPage() {
       }
     },
     [lotUuid, router],
+  );
+
+  const ouvrirEditionAvenant = (a: AvenantItem) => {
+    setEditionAvenantId(a.id);
+    setEditAvenantDescription(a.description);
+    setEditAvenantMontant(String(a.montantTTC));
+    setMessage("");
+    setError("");
+  };
+
+  const enregistrerModificationAvenant = useCallback(
+    async (avenantId: string) => {
+      setEnregistrementAvenant(true);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/avenants/${avenantId}/modifier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: editAvenantDescription,
+            montantTTC: parseMontantSaisi(editAvenantMontant),
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "La modification a échoué.");
+        setMessage(`Avenant ${avenantId} modifié.`);
+        setEditionAvenantId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setEnregistrementAvenant(false);
+      }
+    },
+    [editAvenantDescription, editAvenantMontant, charger],
+  );
+
+  const annulerAvenantAction = useCallback(
+    async (avenantId: string) => {
+      setAnnulationEnCours(avenantId);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/avenants/${avenantId}/annuler`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "L'annulation a échoué.");
+        setMessage(`Avenant ${avenantId} annulé.`);
+        setConfirmationAnnulationAvenantId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setAnnulationEnCours(null);
+      }
+    },
+    [charger],
+  );
+
+  const ouvrirEditionFacture = (f: FactureItem) => {
+    setEditionFactureId(f.id);
+    setEditFactureMontant(String(f.montantTTC));
+    setEditFactureTaux(String(f.montantTTC > 0 ? Math.round((f.retenueGarantie / f.montantTTC) * 1000) / 10 : 5));
+    setMessage("");
+    setError("");
+  };
+
+  const enregistrerModificationFacture = useCallback(
+    async (factureId: string) => {
+      setEnregistrementFacture(true);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/factures/${factureId}/modifier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            montantTTC: parseMontantSaisi(editFactureMontant),
+            tauxRetenue: parseMontantSaisi(editFactureTaux),
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "La modification a échoué.");
+        setMessage(`Facture ${factureId} modifiée.`);
+        setEditionFactureId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setEnregistrementFacture(false);
+      }
+    },
+    [editFactureMontant, editFactureTaux, charger],
+  );
+
+  const annulerFactureAction = useCallback(
+    async (factureId: string) => {
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/factures/${factureId}/annuler`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "L'annulation a échoué.");
+        setMessage(`Facture ${factureId} annulée.`);
+        setConfirmationAnnulationFactureId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [charger],
+  );
+
+  const ouvrirEditionPaiement = (p: PaiementItem) => {
+    setEditionPaiementId(p.id);
+    setEditPaiementMontant(String(p.montant));
+    setMessage("");
+    setError("");
+  };
+
+  const enregistrerModificationPaiement = useCallback(
+    async (paiementId: string) => {
+      setEnregistrementPaiement(true);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/paiements/${paiementId}/modifier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ montant: parseMontantSaisi(editPaiementMontant) }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "La modification a échoué.");
+        setMessage(`Paiement ${paiementId} modifié.`);
+        setEditionPaiementId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setEnregistrementPaiement(false);
+      }
+    },
+    [editPaiementMontant, charger],
+  );
+
+  const annulerPaiementAction = useCallback(
+    async (paiementId: string) => {
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/paiements/${paiementId}/annuler`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "L'annulation a échoué.");
+        setMessage(`Paiement ${paiementId} annulé.`);
+        setConfirmationAnnulationPaiementId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [charger],
+  );
+
+  const ouvrirEditionDevis = (d: DevisItem) => {
+    setEditionDevisId(d.id);
+    setEditDevisMontant(String(d.ttc));
+    setMessage("");
+    setError("");
+  };
+
+  const enregistrerModificationDevis = useCallback(
+    async (devisId: string) => {
+      setEnregistrementDevis(true);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/devis/${devisId}/modifier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ttc: parseMontantSaisi(editDevisMontant) }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "La modification a échoué.");
+        setMessage(`Devis ${devisId} modifié.`);
+        setEditionDevisId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setEnregistrementDevis(false);
+      }
+    },
+    [editDevisMontant, charger],
+  );
+
+  const annulerDevisAction = useCallback(
+    async (devisId: string) => {
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/devis/${devisId}/annuler`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "L'annulation a échoué.");
+        setMessage(`Devis ${devisId} annulé.`);
+        setConfirmationAnnulationDevisId(null);
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [charger],
+  );
+
+  const cocherReserveAction = useCallback(
+    async (reserveId: string) => {
+      setLevantEnCours(reserveId);
+      setError("");
+      setMessage("");
+      try {
+        const res = await fetch(`/api/reserves/${reserveId}/cocher`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Impossible de lever cette réserve.");
+        charger();
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setLevantEnCours(null);
+      }
+    },
+    [charger],
   );
 
   if (notFound) {
@@ -499,6 +792,76 @@ export default function FicheLotPage() {
                       </div>
                     </div>
                   )}
+
+                  {estAnnule(d.statut) && <p className="hint">Annulé le {d.dateAnnulation}</p>}
+
+                  {normStatut(d.statut) !== "signe" &&
+                    !estAnnule(d.statut) &&
+                    !estEnConfirmation &&
+                    confirmerSignatureId !== d.id &&
+                    editionDevisId !== d.id &&
+                    confirmationAnnulationDevisId !== d.id && (
+                      <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                        <button type="button" className="destroy" style={{ padding: 0 }} onClick={() => ouvrirEditionDevis(d)}>
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          className="destroy"
+                          style={{ padding: 0 }}
+                          onClick={() => setConfirmationAnnulationDevisId(d.id)}
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    )}
+
+                  {editionDevisId === d.id && (
+                    <div style={{ marginTop: 8 }}>
+                      <label>Montant TTC</label>
+                      <input
+                        className="field"
+                        inputMode="decimal"
+                        value={editDevisMontant}
+                        onChange={(e) => setEditDevisMontant(e.target.value)}
+                      />
+                      <EchoMontant brut={editDevisMontant} />
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          className="btn sec"
+                          style={{ marginTop: 0 }}
+                          disabled={enregistrementDevis || !parseMontantSaisi(editDevisMontant)}
+                          onClick={() => enregistrerModificationDevis(d.id)}
+                        >
+                          {enregistrementDevis ? "Enregistrement…" : "Enregistrer"}
+                        </button>
+                        <button type="button" className="btn ghost" style={{ marginTop: 0 }} onClick={() => setEditionDevisId(null)}>
+                          Annuler la modification
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {confirmationAnnulationDevisId === d.id && (
+                    <div className="note warn" style={{ marginTop: 8 }}>
+                      <span className="dot warn" />
+                      <div>
+                        <p className="t">Annuler ce devis ?</p>
+                        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                          <button
+                            className="btn ghost"
+                            style={{ marginTop: 0 }}
+                            onClick={() => setConfirmationAnnulationDevisId(null)}
+                          >
+                            Non
+                          </button>
+                          <button className="btn danger" style={{ marginTop: 0 }} onClick={() => annulerDevisAction(d.id)}>
+                            Confirmer l&apos;annulation
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -522,19 +885,111 @@ export default function FicheLotPage() {
             <>
               <p className="sect">Avenants</p>
               <div className="pad">
-                <div className="card">
-                  {fiche.avenants.map((a) => (
-                    <div className="row" key={a.id}>
-                      <span className="k">
-                        {a.description} <span className="mute">· {a.id}</span>
-                      </span>
-                      <span className="v">
-                        {a.montantTTC > 0 ? "+" : ""}
-                        {euros(a.montantTTC)}
-                      </span>
+                {fiche.avenants.map((a) => {
+                  const annule = estAnnule(a.statut);
+                  const enEdition = editionAvenantId === a.id;
+                  const enConfirmation = confirmationAnnulationAvenantId === a.id;
+                  const nouveauMontant = parseMontantSaisi(editAvenantMontant);
+                  return (
+                    <div className="card" key={a.id}>
+                      <div className="row" style={annule ? { opacity: 0.5, textDecoration: "line-through" } : undefined}>
+                        <span className="k">
+                          {a.description} <span className="mute">· {a.id}</span>
+                        </span>
+                        <span className="v">
+                          {a.montantTTC > 0 ? "+" : ""}
+                          {euros(a.montantTTC)}
+                        </span>
+                      </div>
+                      {annule && <p className="hint">Annulé le {a.dateAnnulation}</p>}
+
+                      {!annule && !enEdition && !enConfirmation && (
+                        <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                          <button type="button" className="destroy" style={{ padding: 0 }} onClick={() => ouvrirEditionAvenant(a)}>
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            className="destroy"
+                            style={{ padding: 0 }}
+                            onClick={() => setConfirmationAnnulationAvenantId(a.id)}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      )}
+
+                      {enEdition && (
+                        <div style={{ marginTop: 8 }}>
+                          <label>Description</label>
+                          <input
+                            className="field"
+                            value={editAvenantDescription}
+                            onChange={(e) => setEditAvenantDescription(e.target.value)}
+                          />
+                          <label>Montant TTC</label>
+                          <input
+                            className="field"
+                            inputMode="decimal"
+                            value={editAvenantMontant}
+                            onChange={(e) => setEditAvenantMontant(e.target.value)}
+                          />
+                          <EchoMontant brut={editAvenantMontant} />
+                          {nouveauMontant !== null && nouveauMontant !== 0 && (
+                            <p className="echo">
+                              Nouvel engagé du lot : {euros(fiche.engage - a.montantTTC + nouveauMontant)}
+                            </p>
+                          )}
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              className="btn sec"
+                              style={{ marginTop: 0 }}
+                              disabled={enregistrementAvenant || !editAvenantDescription.trim() || !nouveauMontant}
+                              onClick={() => enregistrerModificationAvenant(a.id)}
+                            >
+                              {enregistrementAvenant ? "Enregistrement…" : "Enregistrer"}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn ghost"
+                              style={{ marginTop: 0 }}
+                              onClick={() => setEditionAvenantId(null)}
+                            >
+                              Annuler la modification
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {enConfirmation && (
+                        <div className="note warn" style={{ marginTop: 8 }}>
+                          <span className="dot warn" />
+                          <div>
+                            <p className="t">Annuler cet avenant ?</p>
+                            <p className="m">Nouvel engagé du lot : {euros(fiche.engage - a.montantTTC)}</p>
+                            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                              <button
+                                className="btn ghost"
+                                style={{ marginTop: 0 }}
+                                onClick={() => setConfirmationAnnulationAvenantId(null)}
+                              >
+                                Non
+                              </button>
+                              <button
+                                className="btn danger"
+                                style={{ marginTop: 0 }}
+                                disabled={annulationEnCours === a.id}
+                                onClick={() => annulerAvenantAction(a.id)}
+                              >
+                                {annulationEnCours === a.id ? "Annulation…" : "Confirmer l'annulation"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </>
           )}
@@ -552,16 +1007,214 @@ export default function FicheLotPage() {
                 </div>
               </div>
             ) : (
-              <div className="card">
-                {fiche.factures.map((f) => (
-                  <div className="row" key={f.id}>
-                    <span className="k">
-                      {f.nature} <span className="mute">· {f.id}</span>
-                    </span>
-                    <span className="v">{euros(f.montantTTC)}</span>
+              fiche.factures.map((f) => {
+                const annule = estAnnule(f.statut);
+                const enEdition = editionFactureId === f.id;
+                const enConfirmation = confirmationAnnulationFactureId === f.id;
+                const nouveauMontant = parseMontantSaisi(editFactureMontant);
+                const nouveauTaux = parseMontantSaisi(editFactureTaux);
+                return (
+                  <div className="card" key={f.id}>
+                    <div className="row" style={annule ? { opacity: 0.5, textDecoration: "line-through" } : undefined}>
+                      <span className="k">
+                        {f.nature} <span className="mute">· {f.id}</span>
+                      </span>
+                      <span className="v">{euros(f.montantTTC)}</span>
+                    </div>
+                    {annule && <p className="hint">Annulée le {f.dateAnnulation}</p>}
+                    {!annule && <p className="hint">Statut : {f.statut || "reçue"}</p>}
+
+                    {f.paiements.length > 0 && (
+                      <div style={{ marginTop: 6, marginBottom: 6 }}>
+                        {f.paiements.map((p) => {
+                          const pAnnule = estAnnule(p.statut);
+                          const pEnEdition = editionPaiementId === p.id;
+                          const pEnConfirmation = confirmationAnnulationPaiementId === p.id;
+                          const pNouveauMontant = parseMontantSaisi(editPaiementMontant);
+                          return (
+                            <div key={p.id} style={{ marginBottom: 6 }}>
+                              <div
+                                className="row"
+                                style={{
+                                  fontSize: 13,
+                                  ...(pAnnule ? { opacity: 0.5, textDecoration: "line-through" } : {}),
+                                }}
+                              >
+                                <span className="k mute">
+                                  Paiement {p.date} · {p.moyen || "moyen non précisé"}
+                                </span>
+                                <span className="v">{euros(p.montant)}</span>
+                              </div>
+                              {pAnnule && <p className="hint">Annulé le {p.dateAnnulation}</p>}
+                              {!pAnnule && !pEnEdition && !pEnConfirmation && (
+                                <div style={{ display: "flex", gap: 16 }}>
+                                  <button
+                                    type="button"
+                                    className="destroy"
+                                    style={{ padding: 0, fontSize: 12.5 }}
+                                    onClick={() => ouvrirEditionPaiement(p)}
+                                  >
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="destroy"
+                                    style={{ padding: 0, fontSize: 12.5 }}
+                                    onClick={() => setConfirmationAnnulationPaiementId(p.id)}
+                                  >
+                                    Annuler
+                                  </button>
+                                </div>
+                              )}
+                              {pEnEdition && (
+                                <div>
+                                  <input
+                                    className="field"
+                                    inputMode="decimal"
+                                    value={editPaiementMontant}
+                                    onChange={(e) => setEditPaiementMontant(e.target.value)}
+                                  />
+                                  <EchoMontant brut={editPaiementMontant} />
+                                  <div style={{ display: "flex", gap: 10 }}>
+                                    <button
+                                      className="btn sec"
+                                      style={{ marginTop: 0 }}
+                                      disabled={enregistrementPaiement || !pNouveauMontant}
+                                      onClick={() => enregistrerModificationPaiement(p.id)}
+                                    >
+                                      {enregistrementPaiement ? "Enregistrement…" : "Enregistrer"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn ghost"
+                                      style={{ marginTop: 0 }}
+                                      onClick={() => setEditionPaiementId(null)}
+                                    >
+                                      Annuler la modification
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {pEnConfirmation && (
+                                <div className="note warn">
+                                  <span className="dot warn" />
+                                  <div>
+                                    <p className="t">Annuler ce paiement ?</p>
+                                    <p className="m">
+                                      La facture redevient à payer, reste dû recalculé aussitôt.
+                                    </p>
+                                    <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                                      <button
+                                        className="btn ghost"
+                                        style={{ marginTop: 0 }}
+                                        onClick={() => setConfirmationAnnulationPaiementId(null)}
+                                      >
+                                        Non
+                                      </button>
+                                      <button
+                                        className="btn danger"
+                                        style={{ marginTop: 0 }}
+                                        onClick={() => annulerPaiementAction(p.id)}
+                                      >
+                                        Confirmer l&apos;annulation
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {!annule && !enEdition && !enConfirmation && (
+                      <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                        <button type="button" className="destroy" style={{ padding: 0 }} onClick={() => ouvrirEditionFacture(f)}>
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          className="destroy"
+                          style={{ padding: 0 }}
+                          onClick={() => setConfirmationAnnulationFactureId(f.id)}
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    )}
+
+                    {enEdition && (
+                      <div style={{ marginTop: 8 }}>
+                        <label>Montant TTC</label>
+                        <input
+                          className="field"
+                          inputMode="decimal"
+                          value={editFactureMontant}
+                          onChange={(e) => setEditFactureMontant(e.target.value)}
+                        />
+                        <EchoMontant brut={editFactureMontant} />
+                        <label>Retenue de garantie (%)</label>
+                        <input
+                          className="field"
+                          inputMode="decimal"
+                          value={editFactureTaux}
+                          onChange={(e) => setEditFactureTaux(e.target.value)}
+                        />
+                        {nouveauMontant !== null && nouveauTaux !== null && (
+                          <p className="echo">
+                            Net à payer : {euros(computeFacture({ montantTTC: nouveauMontant, tauxRetenue: nouveauTaux }).netAPayer)}
+                          </p>
+                        )}
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button
+                            className="btn sec"
+                            style={{ marginTop: 0 }}
+                            disabled={enregistrementFacture || !nouveauMontant || nouveauTaux === null}
+                            onClick={() => enregistrerModificationFacture(f.id)}
+                          >
+                            {enregistrementFacture ? "Enregistrement…" : "Enregistrer"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            style={{ marginTop: 0 }}
+                            onClick={() => setEditionFactureId(null)}
+                          >
+                            Annuler la modification
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {enConfirmation && (
+                      <div className="note warn" style={{ marginTop: 8 }}>
+                        <span className="dot warn" />
+                        <div>
+                          <p className="t">Annuler cette facture ?</p>
+                          <p className="m">
+                            {f.paiements.some((p) => !estAnnule(p.statut))
+                              ? "Des paiements actifs y sont rattachés : ils restent enregistrés mais ne compteront plus dans le reste dû."
+                              : "Elle sort du cumul facturé du lot."}
+                          </p>
+                          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                            <button
+                              className="btn ghost"
+                              style={{ marginTop: 0 }}
+                              onClick={() => setConfirmationAnnulationFactureId(null)}
+                            >
+                              Non
+                            </button>
+                            <button className="btn danger" style={{ marginTop: 0 }} onClick={() => annulerFactureAction(f.id)}>
+                              Confirmer l&apos;annulation
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })
             )}
             <div className="acts">
               <button type="button" className="act" onClick={() => router.push(`/ajouter?lot=${lotUuid}&kind=facture`)}>
@@ -591,6 +1244,43 @@ export default function FicheLotPage() {
             </div>
           </div>
 
+          {fiche.reserves.length > 0 && (
+            <>
+              <p className="sect">Réserves</p>
+              <div className="pad">
+                <div className="card">
+                  {fiche.reserves.map((r) => {
+                    const levee = normStatut(r.statut) === "levee";
+                    return (
+                      <div
+                        key={r.id}
+                        className={`check ${levee ? "done" : ""}`}
+                        style={{ cursor: levee ? "default" : "pointer" }}
+                        onClick={() => !levee && levantEnCours !== r.id && cocherReserveAction(r.id)}
+                      >
+                        <span className={`box ${levee ? "on" : ""}`}>{levee ? "✓" : ""}</span>
+                        <div>
+                          <p className="t">{r.description}</p>
+                          <p className="m">
+                            {levee ? `Levée le ${r.dateLevee}` : `Constatée le ${r.date}`}
+                            {r.driveUrl && (
+                              <>
+                                {" · "}
+                                <a href={r.driveUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                                  Voir la photo
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
           <p className="sect">Planning</p>
           <div className="pad">
             <div className="card">
@@ -610,6 +1300,13 @@ export default function FicheLotPage() {
               {avancementInvalide && (
                 <p className="fieldErr" style={{ marginTop: 6 }}>
                   Un nombre entier entre 0 et 100, sans virgule ni symbole.
+                </p>
+              )}
+              {!avancementInvalide && avancementSaisi !== null && fiche.engage > 0 && (
+                <p className={`echo ${Math.round((fiche.facture / fiche.engage) * 100) - avancementSaisi > 20 ? "danger" : ""}`} style={{ marginTop: 6 }}>
+                  Facturé à {Math.round((fiche.facture / fiche.engage) * 100)} % de l&apos;engagé, écart de{" "}
+                  {Math.abs(Math.round((fiche.facture / fiche.engage) * 100) - avancementSaisi)} points avec
+                  l&apos;avancement déclaré.
                 </p>
               )}
               <button className="btn sec" onClick={enregistrerPlanning} disabled={enregistrementPlanning || planningInvalide}>

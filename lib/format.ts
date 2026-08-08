@@ -30,18 +30,22 @@ export function parseNum(v: unknown): number {
 }
 
 /**
- * Interprète un montant tapé au clavier par l'utilisateur. Volontairement
- * plus strict que parseNum() : celui-ci sert à relire des cellules du
- * classeur déjà bien formatées, alors qu'ici un espace ou un point pourrait
- * vouloir dire deux choses différentes (séparateur de milliers ou décimale
- * anglaise). Plutôt que deviner et écrire un montant faux en silence, on
- * refuse — null signale une saisie incompréhensible, à afficher sous le
- * champ, sans rien enregistrer.
+ * Interprète un montant tapé au clavier par l'utilisateur. L'espace — y
+ * compris l'insécable (U+00A0) et la fine insécable (U+202F) — est le
+ * séparateur des milliers en français : "16 000" vaut seize mille sans
+ * ambiguïté, ce n'est pas une saisie à refuser. On retire les espaces, le
+ * symbole euro, on convertit la virgule décimale en point, puis on ne
+ * refuse que ce qui reste réellement illisible (NaN) — jamais une devinette
+ * silencieuse : c'est à l'écho affiché à côté (EchoMontant) de montrer ce
+ * qui a été compris, pas à ce parseur de trancher tout seul.
  */
 export function parseMontantSaisi(s: string): number | null {
-  const t = s.trim();
-  if (!/^-?\d+([.,]\d{1,2})?$/.test(t)) return null;
-  const n = parseFloat(t.replace(",", "."));
+  const t = s
+    .replace(/[\s\u00a0\u202f]/g, "")
+    .replace(/€/g, "")
+    .replace(/,/g, ".");
+  if (t === "") return null;
+  const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
 

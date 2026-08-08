@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
+import EchoMontant from "@/components/EchoMontant";
 import { euros, parseMontantSaisi } from "@/lib/format";
 
 type Etat = "dépassement" | "sous le budget" | "signé" | "expirés" | "à choisir" | "budget estimé";
@@ -207,13 +208,11 @@ export default function LotsPage() {
                 <input
                   className="field"
                   inputMode="decimal"
-                  placeholder="0,00 €"
+                  placeholder="90 000"
                   value={nouveauBudget}
                   onChange={(e) => setNouveauBudget(e.target.value)}
                 />
-                {budgetInvalide && (
-                  <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 5000 ou 5000,50 (pas d&apos;espace).</p>
-                )}
+                <EchoMontant brut={nouveauBudget} />
                 <label>Périmètre</label>
                 <input
                   className="field"

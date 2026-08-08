@@ -129,6 +129,19 @@ h2 {
   margin: -10px 0 14px;
   line-height: 1.4;
 }
+/* Écho d'un montant saisi : montre ce qui a été compris, formaté en
+   français, au lieu de refuser une saisie ambiguë (cahier §5). Même
+   emplacement que .fieldErr — l'œil n'a qu'un seul endroit à regarder. */
+.echo {
+  font-size: 13px;
+  font-weight: var(--w-bold);
+  color: var(--ink-2);
+  margin: -10px 0 14px;
+  line-height: 1.4;
+}
+.echo b {
+  color: var(--ink);
+}
 
 .badge {
   display: inline-block;

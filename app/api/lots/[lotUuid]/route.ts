@@ -8,8 +8,10 @@ import {
   getPaiements,
   getEntreprises,
   getProjet,
+  getReserves,
   engageLot,
   factureCumulLot,
+  paiementActif,
 } from "@/lib/sheets";
 import { etatDecennale } from "@/lib/decennale";
 import { round2 } from "@/lib/facture";
@@ -26,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
     requireConfigured();
     const { lotUuid } = await params;
 
-    const [lots, devis, avenants, factures, paiements, entreprises, projet] = await Promise.all([
+    const [lots, devis, avenants, factures, paiements, entreprises, projet, reserves] = await Promise.all([
       getLots(),
       getDevis(),
       getAvenants(),
@@ -34,6 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
       getPaiements(),
       getEntreprises(),
       getProjet(),
+      getReserves(),
     ]);
 
     const lot = lots.find((l) => l.LOT_UUID === lotUuid);
@@ -60,11 +63,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
           entreprisePrevenue: norm(d.ENTREPRISE_PREVENUE) === "oui",
           eligibleSignature: STATUTS_ELIGIBLES_SIGNATURE.includes(norm(d.STATUT)),
           eligibleChoix: STATUTS_ELIGIBLES_CHOIX.includes(norm(d.STATUT)),
+          dateAnnulation: d.DATE_ANNULATION || "",
         };
       });
 
-    const payeParFacture = new Map<string, number>();
+    // Un paiement annulé ne compte plus dans « payé » ni dans le reste dû,
+    // mais reste listé pour l'historique — même principe que devis/factures/
+    // avenants annulés : jamais effacé, juste écarté du calcul.
+    const paiementsParFacture = new Map<string, typeof paiements>();
     for (const p of paiements) {
+      const liste = paiementsParFacture.get(p.FACTURE_ID) ?? [];
+      liste.push(p);
+      paiementsParFacture.set(p.FACTURE_ID, liste);
+    }
+    const payeParFacture = new Map<string, number>();
+    for (const p of paiements.filter(paiementActif)) {
       payeParFacture.set(p.FACTURE_ID, (payeParFacture.get(p.FACTURE_ID) ?? 0) + p.MONTANT);
     }
 
@@ -72,6 +85,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
       .filter((f) => f.LOT_UUID === lotUuid)
       .map((f) => {
         const paye = payeParFacture.get(f.FACTURE_ID) ?? 0;
+        const paiementsDeLaFacture = (paiementsParFacture.get(f.FACTURE_ID) ?? []).map((p) => ({
+          id: p.PAIEMENT_ID,
+          date: p.DATE,
+          montant: p.MONTANT,
+          moyen: p.MOYEN,
+          reference: p.REFERENCE,
+          statut: p.STATUT || "",
+          dateAnnulation: p.DATE_ANNULATION || "",
+        }));
         return {
           id: f.FACTURE_ID,
           nature: f.NATURE,
@@ -81,8 +103,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
           retenueGarantie: f.RETENUE_GARANTIE,
           netAPayer: f.NET_A_PAYER,
           statut: f.STATUT,
+          dateAnnulation: f.DATE_ANNULATION || "",
           resteDu: Math.max(0, round2(f.NET_A_PAYER - paye)),
           driveUrl: f.DRIVE_URL,
+          paiements: paiementsDeLaFacture,
         };
       });
 
@@ -93,6 +117,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
         description: a.DESCRIPTION,
         montantTTC: a.MONTANT_TTC,
         date: a.DATE,
+        statut: a.STATUT || "",
+        dateAnnulation: a.DATE_ANNULATION || "",
+      }));
+
+    const reservesDuLot = reserves
+      .filter((r) => r.LOT_UUID === lotUuid)
+      .map((r) => ({
+        id: r.RESERVE_ID,
+        description: r.DESCRIPTION,
+        date: r.DATE,
+        statut: r.STATUT,
+        dateLevee: r.DATE_LEVEE,
+        driveUrl: r.DRIVE_URL,
       }));
 
     const engage = engageLot(lotUuid, devis, avenants);
@@ -120,6 +157,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ lotUuid:
       devis: devisDuLot,
       factures: facturesDuLot,
       avenants: avenantsDuLot,
+      reserves: reservesDuLot,
     });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;

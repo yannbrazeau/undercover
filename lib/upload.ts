@@ -75,6 +75,11 @@ export async function envoyerDocument(lotUuid: string, file: File): Promise<stri
   return envoyerVers({ lotUuid }, file);
 }
 
+/** Même chose, mais dans le sous-dossier Photos du lot — jamais en vrac avec devis et factures. */
+export async function envoyerPhotoLot(lotUuid: string, file: File): Promise<string> {
+  return envoyerVers({ lotUuid, photo: true }, file);
+}
+
 /** Même chose, dans le dossier de documents d'une entreprise (attestation décennale). */
 export async function envoyerDocumentEntreprise(entrepriseId: string, file: File): Promise<string> {
   return envoyerVers({ entrepriseId }, file);

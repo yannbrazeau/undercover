@@ -1,8 +1,9 @@
 // Tests des parseurs de saisie utilisateur. Lancer : npx tsx lib/format.test.ts
 //
-// Le bug d'origine : parseFloat("-16 000") vaut -16 (il s'arrête au premier
-// espace). parseMontantSaisi() doit refuser ce genre de saisie plutôt que
-// deviner un montant faux.
+// L'espace est le séparateur des milliers en français : "16 000" doit être
+// accepté comme seize mille, pas refusé comme ambigu. Le bug d'origine
+// n'était pas la façon de taper, c'était parseFloat("-16 000") qui
+// s'arrêtait au premier espace et rendait -16 en silence.
 
 import { parseMontantSaisi, parsePourcentageSaisi } from "./format";
 
@@ -18,21 +19,21 @@ function assertEqual(actual: unknown, expected: unknown, label: string) {
 }
 
 assertEqual(parseMontantSaisi("16000"), 16000, "entier simple");
+assertEqual(parseMontantSaisi("16 000"), 16000, "espace comme séparateur de milliers");
+assertEqual(parseMontantSaisi("16\u00a0726,55"), 16726.55, "espace insécable + virgule décimale");
+assertEqual(parseMontantSaisi("115 204,42 €"), 115204.42, "espace, virgule et symbole euro combinés");
+assertEqual(parseMontantSaisi("-16 000"), -16000, "négatif avec séparateur de milliers (l'ex-bug)");
+assertEqual(parseMontantSaisi("98477.87"), 98477.87, "point décimal, sans séparateur de milliers");
 assertEqual(parseMontantSaisi("1250,50"), 1250.5, "virgule décimale française");
 assertEqual(parseMontantSaisi("1250.50"), 1250.5, "point décimal");
 assertEqual(parseMontantSaisi("-500"), -500, "négatif (avenant)");
 assertEqual(parseMontantSaisi(" 16000 "), 16000, "espaces en bordure tolérés");
+assertEqual(parseMontantSaisi("16 000,50"), 16000.5, "espace de milliers avec décimales");
 
-// Le bug du -16 000 devenu 16 € : un espace au milieu doit être refusé, pas
-// interprété comme un séparateur de milliers.
-assertEqual(parseMontantSaisi("16 000"), null, "espace interne refusé (ex-bug -16 000 -> 16)");
-assertEqual(parseMontantSaisi("-16 000"), null, "espace interne refusé, signe négatif");
-assertEqual(parseMontantSaisi("16 000,50"), null, "espace interne refusé, avec décimales");
-assertEqual(parseMontantSaisi("environ 5000"), null, "texte non numérique refusé");
-assertEqual(parseMontantSaisi("1e3"), null, "notation scientifique refusée");
+assertEqual(parseMontantSaisi("12a34"), null, "lettres mêlées aux chiffres refusées");
+assertEqual(parseMontantSaisi("environ 5000"), null, "texte libre refusé");
 assertEqual(parseMontantSaisi(""), null, "vide refusé");
-assertEqual(parseMontantSaisi("16,505"), null, "trois décimales refusées");
-assertEqual(parseMontantSaisi("16.5.2"), null, "deux séparateurs refusés");
+assertEqual(parseMontantSaisi("16.5.2"), null, "deux séparateurs décimaux refusés");
 
 assertEqual(parsePourcentageSaisi("50"), 50, "pourcentage simple");
 assertEqual(parsePourcentageSaisi("0"), 0, "zéro accepté");

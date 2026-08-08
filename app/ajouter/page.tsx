@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ScreenHeader from "@/components/ScreenHeader";
+import EchoMontant from "@/components/EchoMontant";
 import { computeFacture } from "@/lib/facture";
 import { euros, todayFr, parseMontantSaisi } from "@/lib/format";
-import { envoyerDocument, readJson } from "@/lib/upload";
+import { envoyerDocument, envoyerPhotoLot, readJson } from "@/lib/upload";
 
-type LotOption = { uuid: string; nom: string };
+type LotOption = { uuid: string; nom: string; engage: number; facture: number };
 type FactureOuverte = {
   id: string;
   lot: string;
@@ -49,14 +50,15 @@ const IconPhoto = () => (
     <circle cx="12" cy="13" r="3.5" />
   </svg>
 );
-// Photo et Autre n'ont jamais eu de route derrière : plutôt qu'un bouton
-// désactivé qui promet une fonction absente, elles ne figurent pas ici.
-// Le jour où l'une est construite, elle rejoint cette liste avec sa route.
+// Autre n'a jamais eu de route derrière : plutôt qu'un bouton désactivé qui
+// promet une fonction absente, elle ne figure pas ici. Le jour où elle est
+// construite, elle rejoint cette liste avec sa route.
 const KINDS = [
   { key: "facture", label: "Facture", Icon: IconFacture },
   { key: "paiement", label: "Paiement", Icon: IconPaiement },
   { key: "avenant", label: "Avenant", Icon: IconAvenant },
   { key: "devis", label: "Devis", Icon: IconDevis },
+  { key: "photo", label: "Photo", Icon: IconPhoto },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
 
@@ -91,6 +93,9 @@ export default function AjouterPage() {
   // Devis
   const [entrepriseIdDevis, setEntrepriseIdDevis] = useState("");
   const [montantDevisTTC, setMontantDevisTTC] = useState("");
+
+  // Photo (réserve)
+  const [photoDescription, setPhotoDescription] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -129,7 +134,13 @@ export default function AjouterPage() {
     const lotParam = qs.get("lot");
     const kindParam = qs.get("kind");
     if (lotParam) setLotUuid(lotParam);
-    if (kindParam === "facture" || kindParam === "paiement" || kindParam === "avenant" || kindParam === "devis") {
+    if (
+      kindParam === "facture" ||
+      kindParam === "paiement" ||
+      kindParam === "avenant" ||
+      kindParam === "devis" ||
+      kindParam === "photo"
+    ) {
       setKind(kindParam);
     }
   }, []);
@@ -187,6 +198,8 @@ export default function AjouterPage() {
     !submitting;
   const canSubmitDevis =
     configured === true && !!lotUuid && !!entrepriseIdDevis && ttcDevis > 0 && !ttcDevisInvalide && !submitting;
+  const canSubmitPhoto =
+    configured === true && !!lotUuid && !!file && !!photoDescription.trim() && !submitting;
   const canSubmit =
     kind === "facture"
       ? canSubmitFacture
@@ -196,7 +209,9 @@ export default function AjouterPage() {
           ? canSubmitAvenant
           : kind === "devis"
             ? canSubmitDevis
-            : false;
+            : kind === "photo"
+              ? canSubmitPhoto
+              : false;
 
   const submitFacture = useCallback(async () => {
     const driveUrl = file ? await envoyerDocument(lotUuid, file) : "";
@@ -293,6 +308,24 @@ export default function AjouterPage() {
     setReference("");
   }, [factureId, montantRegle, moyen, reference]);
 
+  const submitPhoto = useCallback(async () => {
+    if (!file) throw new Error("Choisissez une photo.");
+    const driveUrl = await envoyerPhotoLot(lotUuid, file);
+
+    const res = await fetch("/api/reserves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lotUuid, description: photoDescription, driveUrl }),
+    });
+    const json = await readJson(res);
+    if (!res.ok) throw new Error(String(json.error) || "L'enregistrement a échoué.");
+
+    const reserveCreee = json.reserve as { RESERVE_ID?: string } | undefined;
+    setDone(`Réserve ${reserveCreee?.RESERVE_ID ?? ""} enregistrée. Elle apparaît cochable dans le lot.`);
+    setPhotoDescription("");
+    clearFile();
+  }, [file, lotUuid, photoDescription]);
+
   const submit = useCallback(async () => {
     resetMessages();
     setSubmitting(true);
@@ -301,6 +334,7 @@ export default function AjouterPage() {
       else if (kind === "paiement") await submitPaiement();
       else if (kind === "avenant") await submitAvenant();
       else if (kind === "devis") await submitDevis();
+      else if (kind === "photo") await submitPhoto();
       chargerListes();
     } catch (e) {
       setError((e as Error).message);
@@ -308,7 +342,7 @@ export default function AjouterPage() {
       setSubmitting(false);
       if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [kind, submitFacture, submitPaiement, submitAvenant, submitDevis, chargerListes]);
+  }, [kind, submitFacture, submitPaiement, submitAvenant, submitDevis, submitPhoto, chargerListes]);
 
   return (
     <>
@@ -328,7 +362,7 @@ export default function AjouterPage() {
           </div>
         )}
 
-        {(kind === "facture" || kind === "avenant" || kind === "devis") && (
+        {(kind === "facture" || kind === "avenant" || kind === "devis" || kind === "photo") && (
           <label className="drop">
             <input
               ref={fileRef}
@@ -342,7 +376,9 @@ export default function AjouterPage() {
               <IconPhoto />
             </i>
             <p className="t">Photographier</p>
-            <p className="m">{file ? file.name : "ou choisir un fichier"}</p>
+            <p className="m">
+              {file ? file.name : kind === "photo" ? "Obligatoire pour une réserve" : "ou choisir un fichier"}
+            </p>
           </label>
         )}
         {file && (
@@ -407,12 +443,16 @@ export default function AjouterPage() {
             <input
               className="field"
               inputMode="decimal"
-              placeholder="0,00 €"
+              placeholder="16 000"
               value={montantTTC}
               onChange={(e) => setMontantTTC(e.target.value)}
             />
-            {ttcInvalide && (
-              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 16000 ou 1250,50 (pas d&apos;espace).</p>
+            <EchoMontant brut={montantTTC} />
+            {lot && ttc > 0 && !ttcInvalide && (
+              <p className={`echo ${lot.engage > 0 && lot.facture + ttc > lot.engage + 0.01 ? "danger" : ""}`}>
+                {euros(lot.facture + ttc)} facturés
+                {lot.engage > 0 ? ` sur ${euros(lot.engage)} engagés` : " (aucun devis signé sur ce lot)"}
+              </p>
             )}
 
             <p className="lbl">Retenue de garantie</p>
@@ -427,7 +467,7 @@ export default function AjouterPage() {
               <span>%</span>
               {ttc > 0 && !tauxRetenueInvalide && <span className="calc">soit {euros(montants.retenueGarantie)}</span>}
             </div>
-            {tauxRetenueInvalide && <p className="fieldErr">Taux illisible : un nombre uniquement, ex. 5.</p>}
+            {tauxRetenueInvalide && <p className="fieldErr">Taux non reconnu.</p>}
 
             {ttc > 0 && !ttcInvalide && !tauxRetenueInvalide && (
               <div className="recap">
@@ -471,9 +511,7 @@ export default function AjouterPage() {
               value={montantPaiement}
               onChange={(e) => setMontantPaiement(e.target.value)}
             />
-            {montantRegleInvalide && (
-              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 1500 ou 1250,50 (pas d&apos;espace).</p>
-            )}
+            <EchoMontant brut={montantPaiement} />
 
             <p className="lbl">Moyen</p>
             <select className="field" value={moyen} onChange={(e) => setMoyen(e.target.value)}>
@@ -547,16 +585,15 @@ export default function AjouterPage() {
               value={avenantMontant}
               onChange={(e) => setAvenantMontant(e.target.value)}
             />
-            {montantAvenantInvalide && (
-              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. -500 ou 1250,50 (pas d&apos;espace).</p>
-            )}
+            <EchoMontant brut={avenantMontant} />
 
-            {montantAvenant !== 0 && !montantAvenantInvalide && (
+            {lot && montantAvenant !== 0 && !montantAvenantInvalide && (
               <div className="recap">
-                <p className="t">
+                <p className="t">Nouvel engagé du lot : {euros(lot.engage + montantAvenant)}</p>
+                <p className="m">
                   {montantAvenant > 0
-                    ? `Augmente l'engagé du lot de ${euros(montantAvenant)}`
-                    : `Diminue l'engagé du lot de ${euros(Math.abs(montantAvenant))}`}
+                    ? `Augmente l'engagé de ${euros(montantAvenant)}`
+                    : `Diminue l'engagé de ${euros(Math.abs(montantAvenant))}`}
                 </p>
               </div>
             )}
@@ -618,14 +655,57 @@ export default function AjouterPage() {
               value={montantDevisTTC}
               onChange={(e) => setMontantDevisTTC(e.target.value)}
             />
-            {ttcDevisInvalide && (
-              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 16000 ou 1250,50 (pas d&apos;espace).</p>
-            )}
+            <EchoMontant brut={montantDevisTTC} />
 
             {ttcDevis > 0 && !ttcDevisInvalide && (
               <div className="recap">
                 <p className="t">{euros(ttcDevis)}</p>
                 <p className="m">{lot ? `Sera rangé dans ${lot.nom}, dossier Devis` : "Choisis un lot pour le classement"}</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {kind === "photo" && (
+          <>
+            <p className="lbl">Pour quel lot ?</p>
+            {configured === false ? (
+              <div className="info">
+                La liste des lots demande la connexion Google. Une fois les identifiants en place,
+                elle se remplit toute seule.
+              </div>
+            ) : (
+              <select
+                className="field"
+                value={lotUuid}
+                onChange={(e) => setLotUuid(e.target.value)}
+                aria-label="Pour quel lot"
+              >
+                <option value="">Choisir un lot…</option>
+                {lots.map((l) => (
+                  <option key={l.uuid} value={l.uuid}>
+                    {l.nom}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <p className="lbl">Qu&apos;est-ce que ça montre ?</p>
+            <input
+              className="field"
+              placeholder="Fissure sur le mur porteur, angle nord"
+              value={photoDescription}
+              onChange={(e) => setPhotoDescription(e.target.value)}
+            />
+
+            {file && photoDescription.trim() && (
+              <div className="recap">
+                <p className="t">Réserve à lever</p>
+                <p className="m">
+                  {lot
+                    ? `Photo rangée dans ${lot.nom}, sous-dossier Photos`
+                    : "Choisis un lot pour le classement"}
+                </p>
               </div>
             )}
           </>
@@ -640,7 +720,9 @@ export default function AjouterPage() {
                 ? "Enregistrer l'avenant"
                 : kind === "devis"
                   ? "Enregistrer le devis"
-                  : "Enregistrer la facture"}
+                  : kind === "photo"
+                    ? "Enregistrer la réserve"
+                    : "Enregistrer la facture"}
         </button>
       </div>
     </>

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireConfigured, AppError } from "@/lib/google";
-import { createUploadSession, createUploadSessionEntreprise, createUploadSessionProjet } from "@/lib/drive";
+import {
+  createUploadSession,
+  createUploadSessionEntreprise,
+  createUploadSessionProjet,
+  createUploadSessionPhoto,
+} from "@/lib/drive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +21,7 @@ export async function POST(req: Request) {
     const lotUuid = String(body.lotUuid ?? "").trim();
     const entrepriseId = String(body.entrepriseId ?? "").trim();
     const projet = Boolean(body.projet);
+    const photo = Boolean(body.photo);
     const fileName = String(body.fileName ?? "").trim() || "document";
     const mimeType = String(body.mimeType ?? "application/octet-stream");
 
@@ -27,7 +33,9 @@ export async function POST(req: Request) {
       ? await createUploadSessionProjet(fileName, mimeType)
       : entrepriseId
         ? await createUploadSessionEntreprise(entrepriseId, fileName, mimeType)
-        : await createUploadSession(lotUuid, fileName, mimeType);
+        : photo
+          ? await createUploadSessionPhoto(lotUuid, fileName, mimeType)
+          : await createUploadSession(lotUuid, fileName, mimeType);
     return NextResponse.json({ sessionUri });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;

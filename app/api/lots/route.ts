@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireConfigured, AppError } from "@/lib/google";
-import { getLots, getProjet, creerLot } from "@/lib/sheets";
+import { getLots, getProjet, creerLot, getDevis, getAvenants, getFactures, engageLot, factureCumulLot } from "@/lib/sheets";
 import { ensureLotFolder } from "@/lib/drive";
 import { norm } from "@/lib/format";
 
@@ -8,14 +8,28 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Liste des lots actifs pour les sélecteurs, et valeurs par défaut du projet.
+// engage/facture accompagnent chaque lot pour que l'écran Ajouter puisse
+// annoncer une conséquence chiffrée (dépassement, nouvel engagé) avant
+// l'enregistrement, pas seulement après.
 export async function GET() {
   try {
     requireConfigured();
-    const [lots, projet] = await Promise.all([getLots(), getProjet()]);
+    const [lots, projet, devis, avenants, factures] = await Promise.all([
+      getLots(),
+      getProjet(),
+      getDevis(),
+      getAvenants(),
+      getFactures(),
+    ]);
     return NextResponse.json({
       lots: lots
         .filter((l) => norm(l.ACTIF) === "oui")
-        .map((l) => ({ uuid: l.LOT_UUID, nom: l.NOM })),
+        .map((l) => ({
+          uuid: l.LOT_UUID,
+          nom: l.NOM,
+          engage: engageLot(l.LOT_UUID, devis, avenants),
+          facture: factureCumulLot(l.LOT_UUID, factures),
+        })),
       defaults: { tauxRetenue: projet.tauxRetenueGarantie },
     });
   } catch (e) {

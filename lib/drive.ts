@@ -87,6 +87,30 @@ export async function ensureEntrepriseFolder(entrepriseId: string): Promise<stri
   return folderId;
 }
 
+/** Retrouve (ou crée) un sous-dossier nommé sous un dossier Drive donné. */
+async function ensureSousDossier(parentFolderId: string, nom: string): Promise<string> {
+  const drive = driveClient();
+  const found = await drive.files.list({
+    q: `'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${nom}' and trashed=false`,
+    fields: "files(id,name)",
+    spaces: "drive",
+  });
+  const existingId = found.data.files?.[0]?.id;
+  if (existingId) return existingId;
+
+  const created = await drive.files.create({
+    requestBody: { name: nom, mimeType: "application/vnd.google-apps.folder", parents: [parentFolderId] },
+    fields: "id",
+  });
+  return created.data.id as string;
+}
+
+/** Le sous-dossier Photos d'un lot — une réserve photographiée n'atterrit jamais en vrac. */
+export async function ensureLotPhotosFolder(lotUuid: string): Promise<string> {
+  const lotFolderId = await ensureLotFolder(lotUuid);
+  return ensureSousDossier(lotFolderId, "Photos");
+}
+
 async function ouvrirSessionEnvoi(folderId: string, fileName: string, mimeType: string): Promise<string> {
   const token = await accessToken();
 
@@ -118,6 +142,12 @@ async function ouvrirSessionEnvoi(folderId: string, fileName: string, mimeType: 
  */
 export async function createUploadSession(lotUuid: string, fileName: string, mimeType: string): Promise<string> {
   const folderId = await ensureLotFolder(lotUuid);
+  return ouvrirSessionEnvoi(folderId, fileName, mimeType);
+}
+
+/** Même chose, mais dans le sous-dossier Photos du lot plutôt qu'à sa racine. */
+export async function createUploadSessionPhoto(lotUuid: string, fileName: string, mimeType: string): Promise<string> {
+  const folderId = await ensureLotPhotosFolder(lotUuid);
   return ouvrirSessionEnvoi(folderId, fileName, mimeType);
 }
 

@@ -15,6 +15,7 @@ import {
   type Facture,
   type Avenant,
   type Paiement,
+  type Reserve,
   type ProjetParams,
 } from "./types";
 import {
@@ -112,6 +113,7 @@ export async function getDevis(): Promise<Devis[]> {
     TTC: parseNum(r.TTC),
     STATUT: String(r.STATUT ?? ""),
     DATE_SIGNATURE: String(r.DATE_SIGNATURE ?? ""),
+    DATE_ANNULATION: String(r.DATE_ANNULATION ?? ""),
     REMPLACE: String(r.REMPLACE ?? ""),
     ENTREPRISE_PREVENUE: String(r.ENTREPRISE_PREVENUE ?? ""),
     DRIVE_URL: String(r.DRIVE_URL ?? ""),
@@ -195,6 +197,7 @@ export async function getFactures(): Promise<Facture[]> {
       NET_A_PAYER: parseNum(r.NET_A_PAYER),
       STATUT: String(r.STATUT ?? ""),
       DATE_PAIEMENT: String(r.DATE_PAIEMENT ?? ""),
+      DATE_ANNULATION: String(r.DATE_ANNULATION ?? ""),
       DRIVE_URL: String(r.DRIVE_URL ?? ""),
       COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
     }));
@@ -213,6 +216,8 @@ export async function getPaiements(): Promise<Paiement[]> {
       MOYEN: String(r.MOYEN ?? ""),
       REFERENCE: String(r.REFERENCE ?? ""),
       COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
+      STATUT: String(r.STATUT ?? ""),
+      DATE_ANNULATION: String(r.DATE_ANNULATION ?? ""),
     }));
 }
 
@@ -232,7 +237,66 @@ export async function getAvenants(): Promise<Avenant[]> {
       VALIDE_PAR: String(r.VALIDE_PAR ?? ""),
       DRIVE_URL: String(r.DRIVE_URL ?? ""),
       COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
+      STATUT: String(r.STATUT ?? ""),
+      DATE_ANNULATION: String(r.DATE_ANNULATION ?? ""),
     }));
+}
+
+export async function getReserves(): Promise<Reserve[]> {
+  const { rows } = await readTab(TAB.RESERVES);
+  return rows
+    .filter((r) => !isExample(r))
+    .filter((r) => String(r.RESERVE_ID ?? "") !== "")
+    .map((r) => ({
+      RESERVE_ID: String(r.RESERVE_ID ?? ""),
+      LOT_UUID: String(r.LOT_UUID ?? ""),
+      LOT: String(r.LOT ?? ""),
+      DESCRIPTION: String(r.DESCRIPTION ?? ""),
+      DATE: String(r.DATE ?? ""),
+      STATUT: String(r.STATUT ?? ""),
+      DATE_LEVEE: String(r.DATE_LEVEE ?? ""),
+      DRIVE_URL: String(r.DRIVE_URL ?? ""),
+      COMMENTAIRE: String(r.COMMENTAIRE ?? ""),
+    }));
+}
+
+export type NewReserve = {
+  lotUuid: string;
+  description: string;
+  date: string; // JJ/MM/AAAA
+  driveUrl?: string;
+};
+
+/** Enregistre une réserve — une malfaçon constatée, photographiée, à lever plus tard. */
+export async function addReserve(input: NewReserve): Promise<Record<string, unknown>> {
+  const [{ headers, rows }, lots] = await Promise.all([readTab(TAB.RESERVES), getLots()]);
+  const lot = lots.find((l) => l.LOT_UUID === input.lotUuid);
+  if (!lot) throw new Error("Lot introuvable pour cette réserve.");
+
+  const row: Record<string, unknown> = {
+    RESERVE_ID: nextId("RES-", rows.map((r) => String(r.RESERVE_ID ?? ""))),
+    LOT_UUID: lot.LOT_UUID,
+    LOT: lot.NOM,
+    DESCRIPTION: input.description,
+    DATE: input.date,
+    STATUT: "ouverte",
+    DATE_LEVEE: "",
+    DRIVE_URL: input.driveUrl || "",
+    COMMENTAIRE: "",
+  };
+
+  await appendRow(TAB.RESERVES, headers, row);
+  return row;
+}
+
+/** Lève une réserve : statut + date, jamais effacée — l'historique des malfaçons reste lisible. */
+export async function cocherReserve(reserveId: string, date: string): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.RESERVES, "RESERVE_ID", reserveId, "Réserve");
+  if (norm(String(row.STATUT ?? "")) === "levee") throw new Error("Cette réserve est déjà levée.");
+  await ecrireCellules(TAB.RESERVES, headers, sheetRow, [
+    ["STATUT", "levée"],
+    ["DATE_LEVEE", date],
+  ]);
 }
 
 /** Lit l'onglet clé/valeur DATA_PROJET. */
@@ -304,12 +368,27 @@ export function resolveEntrepriseForLot(lotUuid: string, devis: Devis[]) {
   return { id: chosen?.ENTREPRISE_ID ?? "", nom: chosen?.ENTREPRISE ?? "" };
 }
 
+// Une écriture annulée passe en statut « annulé », jamais effacée — elle
+// reste visible pour l'historique mais sort de tous les calculs. Ces trois
+// prédicats sont le seul endroit qui décide de « compte encore ou pas »,
+// pour que chaque moteur de calcul (engageLot, factureCumulLot, budget)
+// applique exactement la même règle.
+export function avenantActif(a: Avenant): boolean {
+  return norm(a.STATUT) !== "annule";
+}
+export function factureActive(f: Facture): boolean {
+  return norm(f.STATUT) !== "annulee";
+}
+export function paiementActif(p: Paiement): boolean {
+  return norm(p.STATUT) !== "annule";
+}
+
 /** Engagé d'un lot : montant du devis signé, augmenté des avenants validés. Zéro si rien n'est signé. */
 export function engageLot(lotUuid: string, devis: Devis[], avenants: Avenant[]): number {
   const signe = devis.find((d) => d.LOT_UUID === lotUuid && devisEngage(d));
   const base = signe ? signe.TTC : 0;
   const totalAvenants = avenants
-    .filter((a) => a.LOT_UUID === lotUuid)
+    .filter((a) => a.LOT_UUID === lotUuid && avenantActif(a))
     .reduce((s, a) => s + a.MONTANT_TTC, 0);
   return round2(base + totalAvenants);
 }
@@ -317,7 +396,7 @@ export function engageLot(lotUuid: string, devis: Devis[], avenants: Avenant[]):
 /** Cumul facturé d'un lot, en TTC — ce qui sort du compte en banque. */
 export function factureCumulLot(lotUuid: string, factures: Facture[]): number {
   return round2(
-    factures.filter((f) => f.LOT_UUID === lotUuid).reduce((s, f) => s + f.MONTANT_TTC, 0),
+    factures.filter((f) => f.LOT_UUID === lotUuid && factureActive(f)).reduce((s, f) => s + f.MONTANT_TTC, 0),
   );
 }
 
@@ -358,6 +437,60 @@ async function appendRow(tab: string, headers: string[], obj: Record<string, unk
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
+}
+
+/**
+ * Garantit que chaque colonne demandée existe dans l'onglet, en l'ajoutant
+ * en fin de ligne d'en-têtes au besoin. Modifier et annuler des écritures
+ * demande des colonnes (STATUT, DATE_ANNULATION) que d'anciens onglets ne
+ * portent pas encore — plutôt que d'exiger un bricolage manuel du classeur
+ * avant de pouvoir utiliser la fonctionnalité, la route qui en a besoin la
+ * crée elle-même, une seule fois. Renvoie les en-têtes à jour.
+ */
+async function assurerColonnes(tab: string, headers: string[], noms: string[]): Promise<string[]> {
+  const manquantes = noms.filter((n) => !headers.includes(n));
+  if (manquantes.length === 0) return headers;
+  const sheets = sheetsClient();
+  const nouveauxHeaders = [...headers];
+  for (const nom of manquantes) {
+    const col = nouveauxHeaders.length;
+    nouveauxHeaders.push(nom);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${tab}!${colLetter(col)}1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[nom]] },
+    });
+  }
+  return nouveauxHeaders;
+}
+
+/** Retrouve une ligne par son identifiant, ou lève une erreur lisible. */
+async function trouverLigne(tab: string, idCol: string, idVal: string, label: string) {
+  const { headers, rows } = await readTab(tab);
+  const idx = rows.findIndex((r) => String(r[idCol] ?? "") === idVal);
+  if (idx < 0) throw new Error(`${label} introuvable.`);
+  return { headers, rows, idx, sheetRow: idx + 2, row: rows[idx] };
+}
+
+/** Écrit plusieurs cellules d'une même ligne, par nom de colonne. */
+async function ecrireCellules(
+  tab: string,
+  headers: string[],
+  sheetRow: number,
+  updates: [string, unknown][],
+): Promise<void> {
+  const sheets = sheetsClient();
+  for (const [colName, value] of updates) {
+    const c = headers.indexOf(colName);
+    if (c < 0) throw new Error(`Colonne ${colName} introuvable dans ${tab}.`);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${tab}!${colLetter(c)}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[value]] },
+    });
+  }
 }
 
 export type NewLot = {
@@ -462,6 +595,41 @@ export async function addFacture(input: NewFacture): Promise<AddFactureResult> {
   return { facture: row, alerte };
 }
 
+/**
+ * Modifie le montant TTC (et, avec lui, la retenue de garantie et le net à
+ * payer, recalculés par le même moteur qu'à la création) d'une facture
+ * active. Une facture annulée ne se modifie pas — on en crée une nouvelle.
+ */
+export async function modifierFacture(
+  factureId: string,
+  input: { montantTTC: number; tauxRetenue: number; nature?: string },
+): Promise<{ montantTTC: number; retenueGarantie: number; netAPayer: number }> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.FACTURES, "FACTURE_ID", factureId, "Facture");
+  if (norm(String(row.STATUT ?? "")) === "annulee") {
+    throw new Error("Cette facture est annulée : impossible de la modifier.");
+  }
+  const m = computeFacture({ montantTTC: input.montantTTC, tauxRetenue: input.tauxRetenue });
+  const updates: [string, unknown][] = [
+    ["MONTANT_TTC", m.montantTTC],
+    ["RETENUE_GARANTIE", m.retenueGarantie],
+    ["NET_A_PAYER", m.netAPayer],
+  ];
+  if (input.nature !== undefined) updates.push(["NATURE", input.nature]);
+  await ecrireCellules(TAB.FACTURES, headers, sheetRow, updates);
+  return m;
+}
+
+/** Annule une facture : statut + date, la ligne reste, son montant sort de factureCumulLot(). */
+export async function annulerFacture(factureId: string, date: string): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.FACTURES, "FACTURE_ID", factureId, "Facture");
+  if (norm(String(row.STATUT ?? "")) === "annulee") throw new Error("Cette facture est déjà annulée.");
+  const headersAJour = await assurerColonnes(TAB.FACTURES, headers, ["DATE_ANNULATION"]);
+  await ecrireCellules(TAB.FACTURES, headersAJour, sheetRow, [
+    ["STATUT", "annulée"],
+    ["DATE_ANNULATION", date],
+  ]);
+}
+
 export type NewDevis = {
   lotUuid: string;
   entrepriseId: string;
@@ -498,6 +666,52 @@ export async function addDevis(input: NewDevis): Promise<Record<string, unknown>
 
   await appendRow(TAB.DEVIS, headers, row);
   return row;
+}
+
+export type NewDevisRemplacant = {
+  remplaceDevisId: string;
+  lotUuid: string;
+  entrepriseId: string;
+  entreprise: string;
+  ttc: number;
+  statut: string; // reprend le statut du devis remplacé, plutôt que "reçu"
+  dateSignature: string;
+  driveUrl: string;
+};
+
+/**
+ * Enregistre un devis qui en remplace un autre déjà en lice (montant erroné,
+ * variante retenue plus tard…) — jamais un écrasement en place. Utilisée
+ * pour les corrections ponctuelles (ex. /api/admin/corriger-ave-001) où le
+ * nouveau devis doit reprendre le statut et la date de signature de celui
+ * qu'il remplace plutôt que de repartir de zéro.
+ */
+export async function appendDevisRemplacant(input: NewDevisRemplacant): Promise<Record<string, unknown>> {
+  const [{ headers, rows }, lots] = await Promise.all([readTab(TAB.DEVIS), getLots()]);
+  const lot = lots.find((l) => l.LOT_UUID === input.lotUuid);
+
+  const row: Record<string, unknown> = {
+    DEVIS_ID: nextId("DEV-", rows.map((r) => String(r.DEVIS_ID ?? ""))),
+    LOT_UUID: input.lotUuid,
+    LOT: lot?.NOM ?? "",
+    ENTREPRISE_ID: input.entrepriseId,
+    ENTREPRISE: input.entreprise,
+    TTC: input.ttc,
+    STATUT: input.statut,
+    DATE_SIGNATURE: input.dateSignature,
+    REMPLACE: input.remplaceDevisId,
+    ENTREPRISE_PREVENUE: "",
+    DRIVE_URL: input.driveUrl || "",
+  };
+
+  await appendRow(TAB.DEVIS, headers, row);
+  return row;
+}
+
+/** Bascule un devis en « remplacé » — pour les migrations ponctuelles (voir appendDevisRemplacant). */
+export async function marquerDevisRemplace(devisId: string): Promise<void> {
+  const { headers, sheetRow } = await trouverLigne(TAB.DEVIS, "DEVIS_ID", devisId, "Devis");
+  await ecrireCellules(TAB.DEVIS, headers, sheetRow, [["STATUT", STATUT_DEVIS.REMPLACE]]);
 }
 
 export type NewAvenant = {
@@ -546,6 +760,33 @@ export async function addAvenant(input: NewAvenant): Promise<Record<string, unkn
   return row;
 }
 
+/** Modifie la description ou le montant d'un avenant actif — jamais un annulé. */
+export async function modifierAvenant(
+  avenantId: string,
+  input: { description?: string; montantTTC?: number },
+): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.AVENANTS, "AVENANT_ID", avenantId, "Avenant");
+  if (norm(String(row.STATUT ?? "")) === "annule") {
+    throw new Error("Cet avenant est annulé : impossible de le modifier.");
+  }
+  const updates: [string, unknown][] = [];
+  if (input.description !== undefined) updates.push(["DESCRIPTION", input.description]);
+  if (input.montantTTC !== undefined) updates.push(["MONTANT_TTC", input.montantTTC]);
+  if (updates.length === 0) return;
+  await ecrireCellules(TAB.AVENANTS, headers, sheetRow, updates);
+}
+
+/** Annule un avenant : statut + date, la ligne reste, son montant sort d'engageLot(). */
+export async function annulerAvenant(avenantId: string, date: string): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.AVENANTS, "AVENANT_ID", avenantId, "Avenant");
+  if (norm(String(row.STATUT ?? "")) === "annule") throw new Error("Cet avenant est déjà annulé.");
+  const headersAJour = await assurerColonnes(TAB.AVENANTS, headers, ["STATUT", "DATE_ANNULATION"]);
+  await ecrireCellules(TAB.AVENANTS, headersAJour, sheetRow, [
+    ["STATUT", "annulé"],
+    ["DATE_ANNULATION", date],
+  ]);
+}
+
 export type NewPaiement = {
   factureId: string;
   montant: number;
@@ -578,7 +819,7 @@ export async function addPaiement(input: NewPaiement): Promise<PaiementResult> {
 
   const netAPayer = parseNum(factTable.rows[idx].NET_A_PAYER);
   const dejaPaye = paiementsExistants
-    .filter((p) => p.FACTURE_ID === input.factureId)
+    .filter((p) => p.FACTURE_ID === input.factureId && paiementActif(p))
     .reduce((s, p) => s + p.MONTANT, 0);
 
   const row: Record<string, unknown> = {
@@ -618,6 +859,59 @@ export async function addPaiement(input: NewPaiement): Promise<PaiementResult> {
   }
 
   return { paiement: row, statut, resteDu };
+}
+
+/** Remet le statut d'une facture en cohérence avec ses paiements actifs. */
+async function reevaluerStatutFacture(factureId: string): Promise<void> {
+  const [factTable, paiements] = await Promise.all([readTab(TAB.FACTURES), getPaiements()]);
+  const idx = factTable.rows.findIndex((r) => String(r.FACTURE_ID ?? "") === factureId);
+  if (idx < 0) return;
+  if (norm(String(factTable.rows[idx].STATUT ?? "")) === "annulee") return; // une facture annulée ne se rouvre pas toute seule
+  const netAPayer = parseNum(factTable.rows[idx].NET_A_PAYER);
+  const paye = paiements
+    .filter((p) => p.FACTURE_ID === factureId && paiementActif(p))
+    .reduce((s, p) => s + p.MONTANT, 0);
+  const resteDu = Math.max(0, round2(netAPayer - paye));
+  const statut: "payée" | "à payer" = resteDu <= 0.01 ? "payée" : "à payer";
+  await ecrireCellules(TAB.FACTURES, factTable.headers, idx + 2, [["STATUT", statut]]);
+}
+
+/** Modifie un paiement actif — recalcule aussitôt le statut de sa facture. */
+export async function modifierPaiement(
+  paiementId: string,
+  input: { montant?: number; moyen?: string; reference?: string },
+): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.PAIEMENTS, "PAIEMENT_ID", paiementId, "Paiement");
+  if (norm(String(row.STATUT ?? "")) === "annule") {
+    throw new Error("Ce paiement est annulé : impossible de le modifier.");
+  }
+  const updates: [string, unknown][] = [];
+  if (input.montant !== undefined) updates.push(["MONTANT", input.montant]);
+  if (input.moyen !== undefined) updates.push(["MOYEN", input.moyen]);
+  if (input.reference !== undefined) updates.push(["REFERENCE", input.reference]);
+  if (updates.length === 0) return;
+  await ecrireCellules(TAB.PAIEMENTS, headers, sheetRow, updates);
+  if (input.montant !== undefined) {
+    const factureId = String(row.FACTURE_ID ?? "");
+    if (factureId) await reevaluerStatutFacture(factureId);
+  }
+}
+
+/**
+ * Annule un paiement : statut + date, jamais effacé. Rouvre aussitôt la
+ * facture si ce paiement l'avait soldée — sinon elle resterait « payée »
+ * en apparence alors qu'il reste de l'argent dû.
+ */
+export async function annulerPaiement(paiementId: string, date: string): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.PAIEMENTS, "PAIEMENT_ID", paiementId, "Paiement");
+  if (norm(String(row.STATUT ?? "")) === "annule") throw new Error("Ce paiement est déjà annulé.");
+  const headersAJour = await assurerColonnes(TAB.PAIEMENTS, headers, ["STATUT", "DATE_ANNULATION"]);
+  await ecrireCellules(TAB.PAIEMENTS, headersAJour, sheetRow, [
+    ["STATUT", "annulé"],
+    ["DATE_ANNULATION", date],
+  ]);
+  const factureId = String(row.FACTURE_ID ?? "");
+  if (factureId) await reevaluerStatutFacture(factureId);
 }
 
 export type SignDevisInput = {
@@ -796,6 +1090,37 @@ export async function choisirDevis(devisId: string): Promise<ChoisirDevisResult>
   }
 
   return { devisId, lotUuid, ecartes };
+}
+
+/**
+ * Modifie le montant TTC d'un devis pas encore signé. Un devis signé engage
+ * déjà le budget du lot : le modifier en place changerait ce chiffre sans
+ * le geste explicite d'une nouvelle signature — on enregistre un nouveau
+ * devis à la place, relié par REMPLACE (voir addDevis).
+ */
+export async function modifierDevis(devisId: string, ttc: number): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.DEVIS, "DEVIS_ID", devisId, "Devis");
+  const statutActuel = norm(String(row.STATUT ?? ""));
+  if (statutActuel === "signe") {
+    throw new Error("Un devis signé ne se modifie pas : enregistrez un nouveau devis en remplacement.");
+  }
+  if (statutActuel === "annule") throw new Error("Ce devis est annulé : impossible de le modifier.");
+  await ecrireCellules(TAB.DEVIS, headers, sheetRow, [["TTC", ttc]]);
+}
+
+/** Annule un devis non signé : statut + date, jamais un devis déjà engagé. */
+export async function annulerDevis(devisId: string, date: string): Promise<void> {
+  const { headers, sheetRow, row } = await trouverLigne(TAB.DEVIS, "DEVIS_ID", devisId, "Devis");
+  const statutActuel = norm(String(row.STATUT ?? ""));
+  if (statutActuel === "signe") {
+    throw new Error("Un devis signé ne s'annule pas : enregistrez un nouveau devis en remplacement.");
+  }
+  if (statutActuel === "annule") throw new Error("Ce devis est déjà annulé.");
+  const headersAJour = await assurerColonnes(TAB.DEVIS, headers, ["DATE_ANNULATION"]);
+  await ecrireCellules(TAB.DEVIS, headersAJour, sheetRow, [
+    ["STATUT", STATUT_DEVIS.ANNULE],
+    ["DATE_ANNULATION", date],
+  ]);
 }
 
 export type LotPlanningInput = {

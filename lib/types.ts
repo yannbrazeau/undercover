@@ -36,6 +36,7 @@ export const STATUT_DEVIS = {
   ECARTE: "écarté",
   EXPIRE: "expiré",
   ANNEXE: "annexe",
+  ANNULE: "annulé",
 } as const;
 
 export type Devis = {
@@ -47,6 +48,7 @@ export type Devis = {
   TTC: number;
   STATUT: string; // vocabulaire contrôlé (STATUT_DEVIS) — fait foi à lui seul
   DATE_SIGNATURE: string;
+  DATE_ANNULATION?: string; // colonne ajoutée automatiquement à la première annulation
   REMPLACE: string; // DEVIS_ID de la version précédente (versionnage, jamais d'écrasement)
   ENTREPRISE_PREVENUE: string; // oui/non, une fois le devis écarté
   DRIVE_URL: string; // le devis signé, joint au moment de la signature
@@ -83,8 +85,9 @@ export type Facture = {
   MONTANT_TTC: number;
   RETENUE_GARANTIE: number;
   NET_A_PAYER: number;
-  STATUT: string;
+  STATUT: string; // reçue / à payer / payée / annulée
   DATE_PAIEMENT: string;
+  DATE_ANNULATION?: string; // colonne ajoutée automatiquement à la première annulation
   DRIVE_URL: string;
   COMMENTAIRE: string;
 };
@@ -100,6 +103,8 @@ export type Avenant = {
   VALIDE_PAR: string;
   DRIVE_URL: string;
   COMMENTAIRE: string;
+  STATUT?: string; // vide = actif, "annulé" une fois annulé — colonne ajoutée à la volée
+  DATE_ANNULATION?: string;
 };
 
 export type Paiement = {
@@ -109,6 +114,20 @@ export type Paiement = {
   MONTANT: number;
   MOYEN: string;
   REFERENCE: string;
+  COMMENTAIRE: string;
+  STATUT?: string; // vide = actif, "annulé" une fois annulé — colonne ajoutée à la volée
+  DATE_ANNULATION?: string;
+};
+
+export type Reserve = {
+  RESERVE_ID: string;
+  LOT_UUID: string;
+  LOT: string;
+  DESCRIPTION: string;
+  DATE: string;
+  STATUT: string; // "ouverte" ou "levée"
+  DATE_LEVEE: string;
+  DRIVE_URL: string; // la photo qui a signalé la malfaçon
   COMMENTAIRE: string;
 };
 

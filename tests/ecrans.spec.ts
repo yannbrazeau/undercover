@@ -66,8 +66,9 @@ test("Fiche d'un lot", async ({ page }) => {
 test("Ajouter", async ({ page }) => {
   await page.goto("/ajouter?lot=f761a99b&kind=facture");
   await expect(page.getByLabel("Pour quel lot")).toHaveValue("f761a99b");
-  await page.getByPlaceholder("0,00 €").first().fill("12000");
+  await page.getByPlaceholder("16 000").fill("12 000");
   await expect(page.getByText("Net à payer")).toBeVisible();
+  await expect(page.getByText("12 000,00 €", { exact: true })).toBeVisible();
   await screenshotPleinePage(page, "ajouter.png");
 });
 
