@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ScreenHeader from "@/components/ScreenHeader";
-import { euros } from "@/lib/format";
+import { euros, parseMontantSaisi } from "@/lib/format";
 
 type Etat = "dépassement" | "sous le budget" | "signé" | "expirés" | "à choisir" | "budget estimé";
 type Tonalite = "danger" | "warn" | "ok" | "mute";
@@ -75,9 +75,12 @@ export default function LotsPage() {
     charger();
   }, [charger]);
 
+  const budgetSaisi = nouveauBudget.trim() === "" ? null : parseMontantSaisi(nouveauBudget);
+  const budgetInvalide = nouveauBudget.trim() !== "" && budgetSaisi === null;
+
   const creerLot = useCallback(async () => {
     const nom = nouveauNom.trim();
-    if (!nom) return;
+    if (!nom || budgetInvalide) return;
     setCreation(true);
     setErreurCreation("");
     try {
@@ -86,7 +89,7 @@ export default function LotsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nom,
-          budgetTTC: nouveauBudget ? Number(nouveauBudget.replace(",", ".")) : undefined,
+          budgetTTC: budgetSaisi ?? undefined,
           perimetre: nouveauPerimetre,
         }),
       });
@@ -102,7 +105,7 @@ export default function LotsPage() {
     } finally {
       setCreation(false);
     }
-  }, [nouveauNom, nouveauBudget, nouveauPerimetre, charger]);
+  }, [nouveauNom, budgetSaisi, budgetInvalide, nouveauPerimetre, charger]);
 
   const lotsFiltres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -208,6 +211,9 @@ export default function LotsPage() {
                   value={nouveauBudget}
                   onChange={(e) => setNouveauBudget(e.target.value)}
                 />
+                {budgetInvalide && (
+                  <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 5000 ou 5000,50 (pas d&apos;espace).</p>
+                )}
                 <label>Périmètre</label>
                 <input
                   className="field"
@@ -215,7 +221,12 @@ export default function LotsPage() {
                   value={nouveauPerimetre}
                   onChange={(e) => setNouveauPerimetre(e.target.value)}
                 />
-                <button type="button" className="btn" disabled={creation || !nouveauNom.trim()} onClick={creerLot}>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={creation || !nouveauNom.trim() || budgetInvalide}
+                  onClick={creerLot}
+                >
                   {creation ? "Création…" : "Créer le lot"}
                 </button>
                 <button type="button" className="destroy" onClick={() => setAjoutOuvert(false)}>
@@ -272,7 +283,7 @@ function LigneChronologie({ lot, aujourdHui, dernier }: { lot: LotItem; aujourdH
   const enRetard = !!fin && fin < aujourdHui && lot.avancementPct < 100;
   const pointTonalite = enRetard ? "warn" : lot.avancementPct > 0 ? "on" : "";
   return (
-    <div className={`tl${dernier ? " last" : ""}`}>
+    <Link href={`/lots/${lot.lotUuid}`} className={`tl${dernier ? " last" : ""}`} style={{ textDecoration: "none", color: "inherit" }}>
       <span className={`pt ${pointTonalite}`} />
       <div className="tc">
         <p className="d">
@@ -290,6 +301,6 @@ function LigneChronologie({ lot, aujourdHui, dernier }: { lot: LotItem; aujourdH
           <p className={`m st ${lot.etatTonalite}`}>{lot.l2Primaire}</p>
         )}
       </div>
-    </div>
+    </Link>
   );
 }

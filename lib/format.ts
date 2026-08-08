@@ -29,6 +29,30 @@ export function parseNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Interprète un montant tapé au clavier par l'utilisateur. Volontairement
+ * plus strict que parseNum() : celui-ci sert à relire des cellules du
+ * classeur déjà bien formatées, alors qu'ici un espace ou un point pourrait
+ * vouloir dire deux choses différentes (séparateur de milliers ou décimale
+ * anglaise). Plutôt que deviner et écrire un montant faux en silence, on
+ * refuse — null signale une saisie incompréhensible, à afficher sous le
+ * champ, sans rien enregistrer.
+ */
+export function parseMontantSaisi(s: string): number | null {
+  const t = s.trim();
+  if (!/^-?\d+([.,]\d{1,2})?$/.test(t)) return null;
+  const n = parseFloat(t.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Même principe que parseMontantSaisi(), pour un pourcentage entier 0-100. */
+export function parsePourcentageSaisi(s: string): number | null {
+  const t = s.trim();
+  if (!/^\d{1,3}$/.test(t)) return null;
+  const n = parseInt(t, 10);
+  return n >= 0 && n <= 100 ? n : null;
+}
+
 /** Minuscules, sans accents — pour comparer des libellés (OUI/oui, etc.). */
 export function norm(v: unknown): string {
   return String(v ?? "")

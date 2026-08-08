@@ -65,6 +65,11 @@ export default function ChantierPage() {
   const [documentDo, setDocumentDo] = useState<File | null>(null);
   const [enregistrementDo, setEnregistrementDo] = useState(false);
 
+  const [verifConnexion, setVerifConnexion] = useState<"idle" | "loading" | "done">("idle");
+  const [verifResultat, setVerifResultat] = useState<{ configured: boolean; status: Record<string, boolean> } | null>(
+    null,
+  );
+
   const charger = useCallback(() => {
     fetch("/api/chantier", { cache: "no-store" })
       .then((r) => r.json().then((d) => ({ status: r.status, d })))
@@ -128,6 +133,19 @@ export default function ChantierPage() {
       setEnregistrementDo(false);
     }
   }, [assureur, dateEffet, documentDo, charger]);
+
+  const verifierConnexion = useCallback(async () => {
+    setVerifConnexion("loading");
+    try {
+      const res = await fetch("/api/health", { cache: "no-store" });
+      const json = await res.json();
+      setVerifResultat(json);
+    } catch {
+      setVerifResultat({ configured: false, status: {} });
+    } finally {
+      setVerifConnexion("done");
+    }
+  }, []);
 
   if (configured === false) {
     return (
@@ -199,6 +217,9 @@ export default function ChantierPage() {
                   value={dateOuverture}
                   onChange={(e) => setDateOuverture(e.target.value)}
                 />
+                <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                  Recalcule aussitôt l&apos;état de toutes les attestations décennales du chantier.
+                </p>
                 <button className="btn" disabled={!dateOuverture || enregistrementOuverture} onClick={enregistrerOuverture}>
                   {enregistrementOuverture ? "Enregistrement…" : "Enregistrer la date"}
                 </button>
@@ -295,16 +316,50 @@ export default function ChantierPage() {
           <p className="sect">Connexion</p>
           <div className="pad">
             <div className="acts">
-              <div className="act">
-                <span className="ic ok">
+              <button
+                type="button"
+                className="act"
+                onClick={verifierConnexion}
+                disabled={verifConnexion === "loading"}
+              >
+                <span
+                  className={`ic ${
+                    verifConnexion !== "done" ? "neutral" : verifResultat?.configured ? "ok" : "danger"
+                  }`}
+                >
                   <IconPrise />
                 </span>
                 <div>
-                  <p className="t">Accès au chantier</p>
-                  <p className="m">Classeur et dossier de documents</p>
+                  <p className="t">Vérifier la connexion</p>
+                  <p className="m">
+                    {verifConnexion === "loading"
+                      ? "Vérification…"
+                      : verifConnexion === "idle"
+                        ? "Classeur et dossier de documents"
+                        : verifResultat?.configured
+                          ? "Connexion Google établie."
+                          : `Incomplète : ${
+                              Object.entries(verifResultat?.status ?? {})
+                                .filter(([, ok]) => !ok)
+                                .map(([cle]) => cle)
+                                .join(", ") || "cause inconnue"
+                            }.`}
+                  </p>
                 </div>
-                <span className="tag ok">établi</span>
-              </div>
+                <span
+                  className={`tag ${
+                    verifConnexion !== "done" ? "mute" : verifResultat?.configured ? "ok" : "danger"
+                  }`}
+                >
+                  {verifConnexion === "loading"
+                    ? "…"
+                    : verifConnexion === "idle"
+                      ? "vérifier"
+                      : verifResultat?.configured
+                        ? "établi"
+                        : "échec"}
+                </span>
+              </button>
             </div>
           </div>
         </>

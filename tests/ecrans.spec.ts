@@ -73,7 +73,8 @@ test("Ajouter", async ({ page }) => {
 
 test("Chantier", async ({ page }) => {
   await page.goto("/chantier");
-  await expect(page.getByText("établi")).toBeVisible();
+  await page.getByText("Vérifier la connexion").click();
+  await expect(page.getByText("établi", { exact: true })).toBeVisible();
   await screenshotPleinePage(page, "chantier.png");
 });
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ScreenHeader from "@/components/ScreenHeader";
-import { euros } from "@/lib/format";
+import { euros, parsePourcentageSaisi } from "@/lib/format";
 import { envoyerDocument } from "@/lib/upload";
 
 type DevisItem = {
@@ -105,6 +105,7 @@ export default function FicheLotPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
+  const [confirmerSignatureId, setConfirmerSignatureId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -114,6 +115,7 @@ export default function FicheLotPage() {
   const [enregistrementPlanning, setEnregistrementPlanning] = useState(false);
 
   const [confirmerSuppression, setConfirmerSuppression] = useState(false);
+  const [engagementASupprimer, setEngagementASupprimer] = useState<number | null>(null);
   const [suppression, setSuppression] = useState(false);
 
   const [fichiersSignature, setFichiersSignature] = useState<Record<string, File | null>>({});
@@ -173,6 +175,7 @@ export default function FicheLotPage() {
         }
 
         setConfirmation(null);
+        setConfirmerSignatureId(null);
         setFichiersSignature((prev) => ({ ...prev, [devisId]: null }));
         const nb = (json.ecartes ?? []).length;
         setMessage(
@@ -221,20 +224,30 @@ export default function FicheLotPage() {
   const prevenir = useCallback(
     async (devisId: string) => {
       try {
-        await fetch("/api/devis/prevenir", {
+        const res = await fetch("/api/devis/prevenir", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ devisId }),
         });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Impossible de marquer l'entreprise comme prévenue.");
         charger();
-      } catch {
-        setError("Impossible de marquer l'entreprise comme prévenue.");
+      } catch (e) {
+        setError((e as Error).message);
       }
     },
     [charger],
   );
 
+  // Une saisie illisible (texte, hors 0-100) ne devient jamais silencieusement
+  // 0 : elle bloque l'enregistrement et un message apparaît sous le champ.
+  const avancementSaisi = avancementPct.trim() === "" ? null : parsePourcentageSaisi(avancementPct);
+  const avancementInvalide = avancementPct.trim() !== "" && avancementSaisi === null;
+  const datesIncoherentes = !!debutPrevu && !!finPrevue && finPrevue < debutPrevu;
+  const planningInvalide = avancementInvalide || datesIncoherentes;
+
   const enregistrerPlanning = useCallback(async () => {
+    if (planningInvalide) return;
     setEnregistrementPlanning(true);
     setError("");
     setMessage("");
@@ -245,7 +258,7 @@ export default function FicheLotPage() {
         body: JSON.stringify({
           debutPrevu,
           finPrevue,
-          avancementPct: Number(avancementPct) || 0,
+          avancementPct: avancementSaisi ?? 0,
         }),
       });
       const json = await res.json();
@@ -257,21 +270,33 @@ export default function FicheLotPage() {
     } finally {
       setEnregistrementPlanning(false);
     }
-  }, [lotUuid, debutPrevu, finPrevue, avancementPct, charger]);
+  }, [lotUuid, debutPrevu, finPrevue, avancementSaisi, planningInvalide, charger]);
 
-  const supprimer = useCallback(async () => {
-    setSuppression(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/lots/${lotUuid}/supprimer`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "La suppression a échoué.");
-      router.push("/lots");
-    } catch (e) {
-      setError((e as Error).message);
-      setSuppression(false);
-    }
-  }, [lotUuid, router]);
+  const supprimer = useCallback(
+    async (confirmerMalgreEngagement = false) => {
+      setSuppression(true);
+      setError("");
+      try {
+        const res = await fetch(`/api/lots/${lotUuid}/supprimer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmerMalgreEngagement }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "La suppression a échoué.");
+        if (json.requiresConfirmation) {
+          setEngagementASupprimer(json.engage);
+          setSuppression(false);
+          return;
+        }
+        router.push("/lots");
+      } catch (e) {
+        setError((e as Error).message);
+        setSuppression(false);
+      }
+    },
+    [lotUuid, router],
+  );
 
   if (notFound) {
     return (
@@ -378,24 +403,32 @@ export default function FicheLotPage() {
                     </p>
                   )}
 
-                  {d.eligibleSignature && d.decennale !== "valide" && !estEnConfirmation && (
-                    <div className="note warn">
-                      <span className="dot warn" />
-                      <p>
-                        {d.decennale === "à réclamer"
-                          ? "Décennale à réclamer avant de signer"
-                          : `Décennale ${d.decennale} — à réclamer avant de signer`}
+                  {d.eligibleSignature &&
+                    d.decennale !== "valide" &&
+                    !estEnConfirmation &&
+                    confirmerSignatureId !== d.id && (
+                      <div className="note warn">
+                        <span className="dot warn" />
+                        <p>
+                          {d.decennale === "à réclamer"
+                            ? "Décennale à réclamer avant de signer"
+                            : `Décennale ${d.decennale} — à réclamer avant de signer`}
+                        </p>
+                      </div>
+                    )}
+
+                  {d.eligibleChoix && !estEnConfirmation && confirmerSignatureId !== d.id && (
+                    <>
+                      <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>
+                        Écarte automatiquement les autres devis de ce lot.
                       </p>
-                    </div>
+                      <button className="btn sec" disabled={busyId === d.id} onClick={() => choisir(d.id)}>
+                        {busyId === d.id ? "Choix…" : "Choisir ce devis"}
+                      </button>
+                    </>
                   )}
 
-                  {d.eligibleChoix && !estEnConfirmation && (
-                    <button className="btn sec" disabled={busyId === d.id} onClick={() => choisir(d.id)}>
-                      {busyId === d.id ? "Choix…" : "Choisir ce devis"}
-                    </button>
-                  )}
-
-                  {d.eligibleSignature && !estEnConfirmation && (
+                  {d.eligibleSignature && !estEnConfirmation && confirmerSignatureId !== d.id && (
                     <>
                       <label style={{ display: "block", cursor: "pointer", marginTop: 8, fontSize: 12.5, color: "var(--ink-2)" }}>
                         <input
@@ -410,10 +443,34 @@ export default function FicheLotPage() {
                           ? `Document joint : ${fichiersSignature[d.id]!.name}`
                           : "Joindre le devis signé (PDF ou photo, optionnel)"}
                       </label>
-                      <button className="btn" disabled={busyId === d.id} onClick={() => signer(d.id)}>
-                        {busyId === d.id ? (envoiEnCours ? "Envoi du document…" : "Signature…") : "Signer ce devis"}
+                      <button className="btn" onClick={() => setConfirmerSignatureId(d.id)}>
+                        Signer ce devis
                       </button>
                     </>
+                  )}
+
+                  {d.eligibleSignature && !estEnConfirmation && confirmerSignatureId === d.id && (
+                    <div className="note warn">
+                      <span className="dot warn" />
+                      <div>
+                        <p className="t">Signature définitive</p>
+                        <p className="m">
+                          Engage {euros(d.ttc)} sur ce lot. Aucune fonction ne permet de revenir en arrière ensuite.
+                        </p>
+                        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                          <button className="btn ghost" style={{ marginTop: 0 }} onClick={() => setConfirmerSignatureId(null)}>
+                            Annuler
+                          </button>
+                          <button className="btn" style={{ marginTop: 0 }} disabled={busyId === d.id} onClick={() => signer(d.id)}>
+                            {busyId === d.id
+                              ? envoiEnCours
+                                ? "Envoi du document…"
+                                : "Signature…"
+                              : "Confirmer la signature"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {estEnConfirmation && (
@@ -425,7 +482,14 @@ export default function FicheLotPage() {
                         </p>
                         <p className="m">Signer quand même ?</p>
                         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                          <button className="btn ghost" style={{ marginTop: 0 }} onClick={() => setConfirmation(null)}>
+                          <button
+                            className="btn ghost"
+                            style={{ marginTop: 0 }}
+                            onClick={() => {
+                              setConfirmation(null);
+                              setConfirmerSignatureId(null);
+                            }}
+                          >
                             Annuler
                           </button>
                           <button className="btn" style={{ marginTop: 0 }} onClick={() => signer(d.id, true, confirmation.driveUrl)}>
@@ -534,6 +598,7 @@ export default function FicheLotPage() {
               <input className="field" type="date" value={debutPrevu} onChange={(e) => setDebutPrevu(e.target.value)} />
               <label>Fin prévue</label>
               <input className="field" type="date" value={finPrevue} onChange={(e) => setFinPrevue(e.target.value)} />
+              {datesIncoherentes && <p className="fieldErr">La fin prévue ne peut pas être avant le début prévu.</p>}
               <label>Avancement réel (%)</label>
               <input
                 className="field"
@@ -542,7 +607,12 @@ export default function FicheLotPage() {
                 onChange={(e) => setAvancementPct(e.target.value)}
                 style={{ marginBottom: 0 }}
               />
-              <button className="btn sec" onClick={enregistrerPlanning} disabled={enregistrementPlanning}>
+              {avancementInvalide && (
+                <p className="fieldErr" style={{ marginTop: 6 }}>
+                  Un nombre entier entre 0 et 100, sans virgule ni symbole.
+                </p>
+              )}
+              <button className="btn sec" onClick={enregistrerPlanning} disabled={enregistrementPlanning || planningInvalide}>
                 {enregistrementPlanning ? "Enregistrement…" : "Enregistrer le planning"}
               </button>
             </div>
@@ -566,7 +636,33 @@ export default function FicheLotPage() {
               </div>
             )}
 
-            {!confirmerSuppression ? (
+            {engagementASupprimer !== null ? (
+              <div className="note warn">
+                <span className="dot warn" />
+                <div>
+                  <p className="t">Ce lot a un devis signé</p>
+                  <p className="m">
+                    {euros(engagementASupprimer)} sont engagés sur {fiche.lot.nom}. La suppression ne les efface pas :
+                    devis, factures et avenants resteront enregistrés, rattachés à un lot supprimé.
+                  </p>
+                  <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                    <button
+                      className="btn ghost"
+                      style={{ marginTop: 0 }}
+                      onClick={() => {
+                        setEngagementASupprimer(null);
+                        setConfirmerSuppression(false);
+                      }}
+                    >
+                      Annuler
+                    </button>
+                    <button className="btn danger" style={{ marginTop: 0 }} onClick={() => supprimer(true)}>
+                      {suppression ? "Suppression…" : "Supprimer quand même"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : !confirmerSuppression ? (
               <button type="button" className="destroy" onClick={() => setConfirmerSuppression(true)}>
                 Supprimer ce lot
               </button>
@@ -575,11 +671,16 @@ export default function FicheLotPage() {
                 <span className="dot warn" />
                 <div>
                   <p className="t">Supprimer {fiche.lot.nom} ?</p>
+                  <p className="m">
+                    {fiche.devis.length > 0 || fiche.factures.length > 0 || fiche.avenants.length > 0
+                      ? `${fiche.devis.length} devis, ${fiche.factures.length} facture${fiche.factures.length > 1 ? "s" : ""} et ${fiche.avenants.length} avenant${fiche.avenants.length > 1 ? "s" : ""} resteront enregistrés, rattachés à un lot supprimé.`
+                      : "Ce lot n'a ni devis, ni facture, ni avenant enregistré."}
+                  </p>
                   <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                     <button className="btn ghost" style={{ marginTop: 0 }} onClick={() => setConfirmerSuppression(false)}>
                       Annuler
                     </button>
-                    <button className="btn danger" style={{ marginTop: 0 }} onClick={supprimer}>
+                    <button className="btn danger" style={{ marginTop: 0 }} onClick={() => supprimer(false)}>
                       {suppression ? "Suppression…" : "Confirmer la suppression"}
                     </button>
                   </div>

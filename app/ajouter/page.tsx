@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ScreenHeader from "@/components/ScreenHeader";
 import { computeFacture } from "@/lib/facture";
-import { euros, todayFr } from "@/lib/format";
+import { euros, todayFr, parseMontantSaisi } from "@/lib/format";
 import { envoyerDocument, readJson } from "@/lib/upload";
 
 type LotOption = { uuid: string; nom: string };
@@ -49,30 +49,18 @@ const IconPhoto = () => (
     <circle cx="12" cy="13" r="3.5" />
   </svg>
 );
-const IconAutre = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
-    <circle cx="5" cy="12" r="0.5" />
-    <circle cx="12" cy="12" r="0.5" />
-    <circle cx="19" cy="12" r="0.5" />
-  </svg>
-);
-
+// Photo et Autre n'ont jamais eu de route derrière : plutôt qu'un bouton
+// désactivé qui promet une fonction absente, elles ne figurent pas ici.
+// Le jour où l'une est construite, elle rejoint cette liste avec sa route.
 const KINDS = [
-  { key: "facture", label: "Facture", Icon: IconFacture, disponible: true },
-  { key: "paiement", label: "Paiement", Icon: IconPaiement, disponible: true },
-  { key: "avenant", label: "Avenant", Icon: IconAvenant, disponible: true },
-  { key: "devis", label: "Devis", Icon: IconDevis, disponible: true },
-  { key: "photo", label: "Photo", Icon: IconPhoto, disponible: false },
-  { key: "autre", label: "Autre", Icon: IconAutre, disponible: false },
+  { key: "facture", label: "Facture", Icon: IconFacture },
+  { key: "paiement", label: "Paiement", Icon: IconPaiement },
+  { key: "avenant", label: "Avenant", Icon: IconAvenant },
+  { key: "devis", label: "Devis", Icon: IconDevis },
 ] as const;
 type Kind = (typeof KINDS)[number]["key"];
 
 type EntrepriseOption = { id: string; nom: string; activite: string };
-
-function num(s: string): number {
-  const n = parseFloat(String(s).replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
 
 export default function AjouterPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -147,14 +135,22 @@ export default function AjouterPage() {
   }, []);
 
   const lot = lots.find((l) => l.uuid === lotUuid);
-  const ttc = num(montantTTC);
+
+  // Un montant saisi illisible (espace interne, lettres…) ne se transforme
+  // jamais silencieusement en 0 ou en un chiffre tronqué : il bloque l'envoi
+  // et un message apparaît sous le champ, tant que la saisie n'est pas vide.
+  const ttc = parseMontantSaisi(montantTTC) ?? 0;
+  const ttcInvalide = montantTTC.trim() !== "" && parseMontantSaisi(montantTTC) === null;
+  const tauxRetenueNum = parseMontantSaisi(tauxRetenue) ?? 0;
+  const tauxRetenueInvalide = tauxRetenue.trim() !== "" && parseMontantSaisi(tauxRetenue) === null;
   const montants = useMemo(
-    () => computeFacture({ montantTTC: ttc, tauxRetenue: num(tauxRetenue) }),
-    [ttc, tauxRetenue],
+    () => computeFacture({ montantTTC: ttc, tauxRetenue: tauxRetenueNum }),
+    [ttc, tauxRetenueNum],
   );
 
   const factureAPayer = facturesOuvertes.find((f) => f.id === factureId);
-  const montantRegle = num(montantPaiement);
+  const montantRegle = parseMontantSaisi(montantPaiement) ?? 0;
+  const montantRegleInvalide = montantPaiement.trim() !== "" && parseMontantSaisi(montantPaiement) === null;
   const resteApres = factureAPayer ? Math.max(0, Math.round((factureAPayer.resteDu - montantRegle) * 100) / 100) : 0;
 
   const onPickFacture = (id: string) => {
@@ -174,14 +170,23 @@ export default function AjouterPage() {
     setAlerte("");
   };
 
-  const montantAvenant = num(avenantMontant);
-  const ttcDevis = num(montantDevisTTC);
-  const canSubmitFacture = configured === true && !!lotUuid && ttc > 0 && !submitting;
-  const canSubmitPaiement = configured === true && !!factureId && montantRegle > 0 && !submitting;
+  const montantAvenant = parseMontantSaisi(avenantMontant) ?? 0;
+  const montantAvenantInvalide = avenantMontant.trim() !== "" && parseMontantSaisi(avenantMontant) === null;
+  const ttcDevis = parseMontantSaisi(montantDevisTTC) ?? 0;
+  const ttcDevisInvalide = montantDevisTTC.trim() !== "" && parseMontantSaisi(montantDevisTTC) === null;
+  const canSubmitFacture =
+    configured === true && !!lotUuid && ttc > 0 && !ttcInvalide && !tauxRetenueInvalide && !submitting;
+  const canSubmitPaiement =
+    configured === true && !!factureId && montantRegle > 0 && !montantRegleInvalide && !submitting;
   const canSubmitAvenant =
-    configured === true && !!lotUuid && !!avenantDescription.trim() && montantAvenant !== 0 && !submitting;
+    configured === true &&
+    !!lotUuid &&
+    !!avenantDescription.trim() &&
+    montantAvenant !== 0 &&
+    !montantAvenantInvalide &&
+    !submitting;
   const canSubmitDevis =
-    configured === true && !!lotUuid && !!entrepriseIdDevis && ttcDevis > 0 && !submitting;
+    configured === true && !!lotUuid && !!entrepriseIdDevis && ttcDevis > 0 && !ttcDevisInvalide && !submitting;
   const canSubmit =
     kind === "facture"
       ? canSubmitFacture
@@ -203,7 +208,7 @@ export default function AjouterPage() {
         lotUuid,
         nature,
         montantTTC: ttc,
-        tauxRetenue: num(tauxRetenue),
+        tauxRetenue: tauxRetenueNum,
         date: todayFr(),
         driveUrl,
       }),
@@ -217,7 +222,7 @@ export default function AjouterPage() {
     if (alerteJson?.message) setAlerte(alerteJson.message);
     setMontantTTC("");
     clearFile();
-  }, [file, lotUuid, nature, ttc, tauxRetenue]);
+  }, [file, lotUuid, nature, ttc, tauxRetenueNum]);
 
   const submitAvenant = useCallback(async () => {
     const res = await fetch("/api/avenants", {
@@ -305,8 +310,6 @@ export default function AjouterPage() {
     }
   }, [kind, submitFacture, submitPaiement, submitAvenant, submitDevis, chargerListes]);
 
-  const kindActuel = KINDS.find((k) => k.key === kind)!;
-
   return (
     <>
       <ScreenHeader title="Ajouter" />
@@ -325,7 +328,7 @@ export default function AjouterPage() {
           </div>
         )}
 
-        {kindActuel.disponible && (kind === "facture" || kind === "avenant" || kind === "devis") && (
+        {(kind === "facture" || kind === "avenant" || kind === "devis") && (
           <label className="drop">
             <input
               ref={fileRef}
@@ -366,21 +369,6 @@ export default function AjouterPage() {
             </span>
           ))}
         </div>
-
-        {!kindActuel.disponible && (
-          <div className="empty">
-            <span className="round">
-              <IconAutre />
-            </span>
-            <div>
-              <p className="t">Pas encore disponible</p>
-              <p className="m">
-                L&apos;ajout de {kindActuel.label.toLowerCase()} n&apos;est pas encore relié au classeur. Utilise
-                Facture, Paiement, Avenant ou Devis en attendant.
-              </p>
-            </div>
-          </div>
-        )}
 
         {kind === "facture" && (
           <>
@@ -423,6 +411,9 @@ export default function AjouterPage() {
               value={montantTTC}
               onChange={(e) => setMontantTTC(e.target.value)}
             />
+            {ttcInvalide && (
+              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 16000 ou 1250,50 (pas d&apos;espace).</p>
+            )}
 
             <p className="lbl">Retenue de garantie</p>
             <div className="field calcField">
@@ -434,10 +425,11 @@ export default function AjouterPage() {
                 style={{ border: 0, outline: "none", width: 60, font: "inherit", background: "none" }}
               />
               <span>%</span>
-              {ttc > 0 && <span className="calc">soit {euros(montants.retenueGarantie)}</span>}
+              {ttc > 0 && !tauxRetenueInvalide && <span className="calc">soit {euros(montants.retenueGarantie)}</span>}
             </div>
+            {tauxRetenueInvalide && <p className="fieldErr">Taux illisible : un nombre uniquement, ex. 5.</p>}
 
-            {ttc > 0 && (
+            {ttc > 0 && !ttcInvalide && !tauxRetenueInvalide && (
               <div className="recap">
                 <p className="t">Net à payer {euros(montants.netAPayer)}</p>
                 <p className="m">{lot ? `Sera rangé dans ${lot.nom}, dossier Factures` : "Choisis un lot pour le classement"}</p>
@@ -479,6 +471,9 @@ export default function AjouterPage() {
               value={montantPaiement}
               onChange={(e) => setMontantPaiement(e.target.value)}
             />
+            {montantRegleInvalide && (
+              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 1500 ou 1250,50 (pas d&apos;espace).</p>
+            )}
 
             <p className="lbl">Moyen</p>
             <select className="field" value={moyen} onChange={(e) => setMoyen(e.target.value)}>
@@ -531,6 +526,11 @@ export default function AjouterPage() {
               </select>
             )}
 
+            <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+              Nécessite un devis signé sur ce lot : sans engagement existant, la route refuse
+              l&apos;enregistrement.
+            </p>
+
             <p className="lbl">Description</p>
             <input
               className="field"
@@ -547,8 +547,11 @@ export default function AjouterPage() {
               value={avenantMontant}
               onChange={(e) => setAvenantMontant(e.target.value)}
             />
+            {montantAvenantInvalide && (
+              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. -500 ou 1250,50 (pas d&apos;espace).</p>
+            )}
 
-            {montantAvenant !== 0 && (
+            {montantAvenant !== 0 && !montantAvenantInvalide && (
               <div className="recap">
                 <p className="t">
                   {montantAvenant > 0
@@ -615,8 +618,11 @@ export default function AjouterPage() {
               value={montantDevisTTC}
               onChange={(e) => setMontantDevisTTC(e.target.value)}
             />
+            {ttcDevisInvalide && (
+              <p className="fieldErr">Montant illisible : chiffres uniquement, ex. 16000 ou 1250,50 (pas d&apos;espace).</p>
+            )}
 
-            {ttcDevis > 0 && (
+            {ttcDevis > 0 && !ttcDevisInvalide && (
               <div className="recap">
                 <p className="t">{euros(ttcDevis)}</p>
                 <p className="m">{lot ? `Sera rangé dans ${lot.nom}, dossier Devis` : "Choisis un lot pour le classement"}</p>
@@ -625,19 +631,17 @@ export default function AjouterPage() {
           </>
         )}
 
-        {kindActuel.disponible && (
-          <button className="btn" onClick={submit} disabled={!canSubmit}>
-            {submitting
-              ? "Enregistrement…"
-              : kind === "paiement"
-                ? "Enregistrer le paiement"
-                : kind === "avenant"
-                  ? "Enregistrer l'avenant"
-                  : kind === "devis"
-                    ? "Enregistrer le devis"
-                    : "Enregistrer la facture"}
-          </button>
-        )}
+        <button className="btn" onClick={submit} disabled={!canSubmit}>
+          {submitting
+            ? "Enregistrement…"
+            : kind === "paiement"
+              ? "Enregistrer le paiement"
+              : kind === "avenant"
+                ? "Enregistrer l'avenant"
+                : kind === "devis"
+                  ? "Enregistrer le devis"
+                  : "Enregistrer la facture"}
+        </button>
       </div>
     </>
   );

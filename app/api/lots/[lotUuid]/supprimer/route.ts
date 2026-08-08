@@ -9,7 +9,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ lotUuid
   try {
     requireConfigured();
     const { lotUuid } = await params;
-    await supprimerLot(lotUuid);
+    const body = await req.json().catch(() => ({}));
+    const confirmerMalgreEngagement = body?.confirmerMalgreEngagement === true;
+
+    const resultat = await supprimerLot(lotUuid, confirmerMalgreEngagement);
+    if (resultat.requiresConfirmation) {
+      return NextResponse.json({ requiresConfirmation: true, engage: resultat.engage });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     const status = e instanceof AppError ? e.status : 500;

@@ -510,14 +510,22 @@ export type NewAvenant = {
 
 /** Enregistre un avenant — le seul moyen de faire évoluer l'engagé après signature. */
 export async function addAvenant(input: NewAvenant): Promise<Record<string, unknown>> {
-  const [{ headers, rows }, lots, devis] = await Promise.all([
+  const [{ headers, rows }, lots, devis, avenants] = await Promise.all([
     readTab(TAB.AVENANTS),
     getLots(),
     getDevis(),
+    getAvenants(),
   ]);
 
   const lot = lots.find((l) => l.LOT_UUID === input.lotUuid);
   if (!lot) throw new Error("Lot introuvable pour cet avenant.");
+
+  // Un avenant fait évoluer un engagement — il ne peut pas en créer un.
+  // Vérifié ici, pas seulement dans le formulaire : la route doit refuser
+  // même si l'écran a été contourné.
+  if (engageLot(lot.LOT_UUID, devis, avenants) <= 0) {
+    throw new Error("Ce lot n'a pas de devis signé : impossible d'ajouter un avenant.");
+  }
 
   const entreprise = resolveEntrepriseForLot(lot.LOT_UUID, devis);
 
@@ -830,10 +838,32 @@ export async function updateLotPlanning(lotUuid: string, input: LotPlanningInput
 }
 
 /** Suppression douce d'un lot : il disparaît de tous les écrans, la ligne reste tracée. */
-export async function supprimerLot(lotUuid: string): Promise<void> {
-  const { headers, rows } = await readTab(TAB.LOTS);
+export type SuppressionLot = { requiresConfirmation: true; engage: number } | { requiresConfirmation: false };
+
+/**
+ * Supprime (soft-delete) un lot. Si un devis signé y engage un budget, la
+ * suppression n'est pas silencieuse : elle s'arrête et rend la main à
+ * l'appelant pour une confirmation explicite — les devis/factures/avenants
+ * existants ne sont jamais effacés, ils resteraient simplement rattachés à
+ * un lot disparu.
+ */
+export async function supprimerLot(
+  lotUuid: string,
+  confirmerMalgreEngagement = false,
+): Promise<SuppressionLot> {
+  const [{ headers, rows }, devis, avenants] = await Promise.all([
+    readTab(TAB.LOTS),
+    getDevis(),
+    getAvenants(),
+  ]);
   const idx = rows.findIndex((r) => String(r.LOT_UUID ?? "") === lotUuid);
   if (idx < 0) throw new Error("Lot introuvable.");
+
+  const engage = engageLot(lotUuid, devis, avenants);
+  if (engage > 0 && !confirmerMalgreEngagement) {
+    return { requiresConfirmation: true, engage };
+  }
+
   const col = headers.indexOf("ACTIF");
   if (col < 0) throw new Error("Colonne ACTIF introuvable.");
 
@@ -843,6 +873,7 @@ export async function supprimerLot(lotUuid: string): Promise<void> {
     valueInputOption: "RAW",
     requestBody: { values: [["NON"]] },
   });
+  return { requiresConfirmation: false };
 }
 
 /** Coche ENTREPRISE_PREVENUE une fois l'entreprise non retenue avertie. */

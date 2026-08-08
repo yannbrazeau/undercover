@@ -89,8 +89,10 @@ export default function FicheEntreprisePage() {
     charger();
   }, [charger]);
 
+  const datesIncoherentes = !!debut && !!fin && fin < debut;
+
   const enregistrer = useCallback(async () => {
-    if (!debut || !fin) return;
+    if (!debut || !fin || fin < debut) return;
     setEnvoi(true);
     setError("");
     setMessage("");
@@ -209,12 +211,19 @@ export default function FicheEntreprisePage() {
               </div>
             ) : (
               <div className="card">
+                {(fiche.entreprise.decennale.debut || fiche.entreprise.decennale.fin) && (
+                  <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                    Remplace l&apos;attestation actuellement enregistrée ({fiche.entreprise.decennale.debut} au{" "}
+                    {fiche.entreprise.decennale.fin}).
+                  </p>
+                )}
                 <label>Assureur</label>
                 <input className="field" value={assureur} onChange={(e) => setAssureur(e.target.value)} placeholder="Nom de l'assureur" />
                 <label>Valable du</label>
                 <input className="field" type="date" value={debut} onChange={(e) => setDebut(e.target.value)} />
                 <label>Au</label>
                 <input className="field" type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+                {datesIncoherentes && <p className="fieldErr">La date de fin ne peut pas être avant la date de début.</p>}
                 <label>Activités couvertes</label>
                 <input
                   className="field"
@@ -231,7 +240,7 @@ export default function FicheEntreprisePage() {
                   />
                   {fichier ? `Document joint : ${fichier.name}` : "Joindre l'attestation (PDF ou photo, optionnel)"}
                 </label>
-                <button className="btn" disabled={!debut || !fin || envoi} onClick={enregistrer}>
+                <button className="btn" disabled={!debut || !fin || datesIncoherentes || envoi} onClick={enregistrer}>
                   {envoi ? "Enregistrement…" : "Enregistrer l'attestation"}
                 </button>
                 <button type="button" className="destroy" onClick={() => setFormOuvert(false)}>

@@ -121,6 +121,14 @@ h2 {
   margin: 11px 0 0;
   line-height: 1.45;
 }
+/* Message sous un champ dont la saisie n'a pas été comprise : rien n'est
+   enregistré tant qu'il est visible (cahier §5). */
+.fieldErr {
+  font-size: 12.5px;
+  color: var(--danger);
+  margin: -10px 0 14px;
+  line-height: 1.4;
+}
 
 .badge {
   display: inline-block;
