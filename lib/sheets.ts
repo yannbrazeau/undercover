@@ -126,12 +126,53 @@ export async function getEntreprises(): Promise<Entreprise[]> {
     ENTREPRISE_ID: String(r.ENTREPRISE_ID ?? ""),
     NOM: String(r.NOM ?? ""),
     ACTIVITE: String(r.ACTIVITE ?? ""),
+    DECENNALE_ASSUREUR: String(r.DECENNALE_ASSUREUR ?? ""),
     DECENNALE_DEBUT: String(r.DECENNALE_DEBUT ?? ""),
     DECENNALE_FIN: String(r.DECENNALE_FIN ?? ""),
     DECENNALE_ACTIVITES: String(r.DECENNALE_ACTIVITES ?? ""),
     DECENNALE_DRIVE_URL: String(r.DECENNALE_DRIVE_URL ?? ""),
     ATTESTATION_TVA_REMISE: String(r.ATTESTATION_TVA_REMISE ?? ""),
+    SIRET: String(r.SIRET ?? ""),
+    CONTACT: String(r.CONTACT ?? ""),
+    DRIVE_FOLDER_ID: String(r.DRIVE_FOLDER_ID ?? ""),
   }));
+}
+
+export type NewAttestationDecennale = {
+  entrepriseId: string;
+  assureur?: string;
+  debut: string; // JJ/MM/AAAA
+  fin: string; // JJ/MM/AAAA
+  activites?: string;
+  driveUrl?: string;
+};
+
+/** Enregistre l'attestation décennale d'une entreprise déjà répertoriée. */
+export async function enregistrerAttestationDecennale(input: NewAttestationDecennale): Promise<void> {
+  const { headers, rows } = await readTab(TAB.ENTREPRISES);
+  const idx = rows.findIndex((r) => String(r.ENTREPRISE_ID ?? "") === input.entrepriseId);
+  if (idx < 0) throw new Error("Entreprise introuvable.");
+
+  const sheets = sheetsClient();
+  const sheetRow = idx + 2;
+  const writes: [string, string][] = [
+    ["DECENNALE_DEBUT", input.debut],
+    ["DECENNALE_FIN", input.fin],
+  ];
+  if (input.assureur !== undefined) writes.push(["DECENNALE_ASSUREUR", input.assureur]);
+  if (input.activites !== undefined) writes.push(["DECENNALE_ACTIVITES", input.activites]);
+  if (input.driveUrl) writes.push(["DECENNALE_DRIVE_URL", input.driveUrl]);
+
+  for (const [colName, value] of writes) {
+    const c = headers.indexOf(colName);
+    if (c < 0) continue;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.ENTREPRISES}!${colLetter(c)}${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[value]] },
+    });
+  }
 }
 
 export async function getFactures(): Promise<Facture[]> {
@@ -205,9 +246,34 @@ export async function getProjet(): Promise<ProjetParams> {
     dateOuvertureChantier: map.get("DATE_OUVERTURE_CHANTIER") ?? "",
     tauxRetenueGarantie: Number.isFinite(taux) ? taux : 0,
     doSouscrite: norm(map.get("DO_SOUSCRITE")) === "oui",
+    doAssureur: map.get("DO_ASSUREUR") ?? "",
+    doDateEffet: map.get("DO_DATE_EFFET") ?? "",
+    doDocumentUrl: map.get("DO_DOCUMENT_URL") ?? "",
     maitreOeuvre: map.get("MAITRE_OEUVRE") ?? "",
-    decennaleHmpValidite: map.get("DECENNALE_HMP_VALIDITE") ?? "",
   };
+}
+
+/** Met à jour (ou crée) une ou plusieurs paires clé/valeur de DATA_PROJET. */
+export async function updateProjetKeys(pairs: Record<string, string>): Promise<void> {
+  const { headers, rows } = await readTab(TAB.PROJET);
+  const cleCol = headers.indexOf("CLE");
+  const valeurCol = headers.indexOf("VALEUR");
+  if (cleCol < 0 || valeurCol < 0) throw new Error("Colonnes CLE/VALEUR introuvables dans DATA_PROJET.");
+
+  const sheets = sheetsClient();
+  for (const [cle, valeur] of Object.entries(pairs)) {
+    const idx = rows.findIndex((r) => String(r.CLE ?? "").trim() === cle);
+    if (idx >= 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: config().spreadsheetId,
+        range: `${TAB.PROJET}!${colLetter(valeurCol)}${idx + 2}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[valeur]] },
+      });
+    } else {
+      await appendRow(TAB.PROJET, headers, { CLE: cle, VALEUR: valeur });
+    }
+  }
 }
 
 // Sémantique du STATUT (source unique). Repli sur les anciennes colonnes

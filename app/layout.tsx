@@ -7,12 +7,17 @@ import Nav from "@/components/Nav";
 export const metadata: Metadata = {
   title: "Pilotage chantier HMP",
   description: "Suivi du chantier : budget, factures, paiements.",
+  appleWebApp: {
+    title: "Chantier",
+    capable: true,
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f7f7f8",
+  themeColor: "#f4f5f8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

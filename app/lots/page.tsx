@@ -125,7 +125,7 @@ export default function LotsPage() {
       <>
         <ScreenHeader title="Lots" />
         <div className="pad top">
-          <div className="info">La liste des lots demande la connexion Google, à établir dans Réglages.</div>
+          <div className="info">La liste des lots demande la connexion Google, à établir dans Chantier.</div>
         </div>
       </>
     );

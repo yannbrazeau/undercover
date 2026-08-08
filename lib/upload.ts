@@ -55,22 +55,27 @@ export async function uploadViaChunks(
   return null;
 }
 
-/** Ouvre une session, envoie le fichier, renvoie le lien Drive du document créé. */
-export async function envoyerDocument(lotUuid: string, file: File): Promise<string> {
+async function envoyerVers(body: Record<string, unknown>, file: File): Promise<string> {
   if (file.size > MAX_FILE_BYTES) throw new Error("Fichier trop volumineux.");
 
   const init = await fetch("/api/upload-init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      lotUuid,
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-    }),
+    body: JSON.stringify({ ...body, fileName: file.name, mimeType: file.type || "application/octet-stream" }),
   });
   const initJson = await readJson(init);
   if (!init.ok) throw new Error(String(initJson.error) || "L'envoi du fichier n'a pas pu démarrer.");
 
   const result = await uploadViaChunks(String(initJson.sessionUri), file);
   return result?.webViewLink || (result?.id ? `https://drive.google.com/file/d/${result.id}/view` : "");
+}
+
+/** Ouvre une session, envoie le fichier dans le dossier du lot, renvoie le lien Drive créé. */
+export async function envoyerDocument(lotUuid: string, file: File): Promise<string> {
+  return envoyerVers({ lotUuid }, file);
+}
+
+/** Même chose, dans le dossier de documents d'une entreprise (attestation décennale). */
+export async function envoyerDocumentEntreprise(entrepriseId: string, file: File): Promise<string> {
+  return envoyerVers({ entrepriseId }, file);
 }

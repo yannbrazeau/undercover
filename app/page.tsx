@@ -64,7 +64,7 @@ export default function BudgetPage() {
         <div className="pad top">
           <div className="info">
             {error ||
-              "La connexion au chantier n'est pas encore établie. Les chiffres s'afficheront une fois qu'elle le sera, dans Réglages."}
+              "La connexion au chantier n'est pas encore établie. Les chiffres s'afficheront une fois qu'elle le sera, dans Chantier."}
           </div>
         </div>
       </>

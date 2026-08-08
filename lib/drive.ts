@@ -54,15 +54,40 @@ export async function ensureLotFolder(lotUuid: string): Promise<string> {
 }
 
 /**
- * Ouvre une session d'envoi reprenable dans le dossier du lot et renvoie l'URI
- * de session. Le navigateur enverra le fichier directement sur cette URI.
+ * Renvoie l'ID du dossier Drive d'une entreprise (attestations décennales).
+ * Créé au premier envoi, sous le même dossier parent que les lots.
  */
-export async function createUploadSession(
-  lotUuid: string,
-  fileName: string,
-  mimeType: string,
-): Promise<string> {
-  const folderId = await ensureLotFolder(lotUuid);
+export async function ensureEntrepriseFolder(entrepriseId: string): Promise<string> {
+  const { headers, rows } = await readTab(TAB.ENTREPRISES);
+  const idx = rows.findIndex((r) => String(r.ENTREPRISE_ID ?? "") === entrepriseId);
+  if (idx < 0) throw new Error("Entreprise introuvable.");
+
+  const existing = String(rows[idx].DRIVE_FOLDER_ID ?? "").trim();
+  if (existing) return existing;
+
+  const created = await driveClient().files.create({
+    requestBody: {
+      name: String(rows[idx].NOM ?? "Entreprise"),
+      mimeType: "application/vnd.google-apps.folder",
+      parents: config().lotsParentId ? [config().lotsParentId as string] : undefined,
+    },
+    fields: "id",
+  });
+  const folderId = created.data.id as string;
+
+  const col = headers.indexOf("DRIVE_FOLDER_ID");
+  if (col >= 0) {
+    await sheetsClient().spreadsheets.values.update({
+      spreadsheetId: config().spreadsheetId,
+      range: `${TAB.ENTREPRISES}!${colLetter(col)}${idx + 2}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[folderId]] },
+    });
+  }
+  return folderId;
+}
+
+async function ouvrirSessionEnvoi(folderId: string, fileName: string, mimeType: string): Promise<string> {
   const token = await accessToken();
 
   const res = await fetch(
@@ -85,4 +110,23 @@ export async function createUploadSession(
   const sessionUri = res.headers.get("location");
   if (!sessionUri) throw new Error("Session d'envoi non obtenue de Google.");
   return sessionUri;
+}
+
+/**
+ * Ouvre une session d'envoi reprenable dans le dossier du lot et renvoie l'URI
+ * de session. Le navigateur enverra le fichier directement sur cette URI.
+ */
+export async function createUploadSession(lotUuid: string, fileName: string, mimeType: string): Promise<string> {
+  const folderId = await ensureLotFolder(lotUuid);
+  return ouvrirSessionEnvoi(folderId, fileName, mimeType);
+}
+
+/** Même chose, pour le dossier de documents d'une entreprise. */
+export async function createUploadSessionEntreprise(
+  entrepriseId: string,
+  fileName: string,
+  mimeType: string,
+): Promise<string> {
+  const folderId = await ensureEntrepriseFolder(entrepriseId);
+  return ouvrirSessionEnvoi(folderId, fileName, mimeType);
 }

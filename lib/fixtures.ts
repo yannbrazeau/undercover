@@ -42,6 +42,24 @@ function devis(id: string, lotUuid: string, ttc: number, statut: string, extra: 
   };
 }
 
+function entreprise(id: string, nom: string, activite: string, extra: Partial<Entreprise> = {}): Entreprise {
+  return {
+    ENTREPRISE_ID: id,
+    NOM: nom,
+    ACTIVITE: activite,
+    DECENNALE_ASSUREUR: "",
+    DECENNALE_DEBUT: "",
+    DECENNALE_FIN: "",
+    DECENNALE_ACTIVITES: "",
+    DECENNALE_DRIVE_URL: "",
+    ATTESTATION_TVA_REMISE: "non",
+    SIRET: "",
+    CONTACT: "",
+    DRIVE_FOLDER_ID: "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+    ...extra,
+  };
+}
+
 // Lots actifs réels du chantier — somme des budgets = 629 850,00 €.
 // Trois lots portent des dates de planning (les vingt autres n'en ont pas
 // encore) : c'est la vue Chronologie telle qu'elle se présente aujourd'hui.
@@ -91,38 +109,76 @@ export const FIXTURE_LOTS: Lot[] = [
 export const FIXTURE_DEVIS: Devis[] = [
   devis("DEV-001", "a9108942", 2800, "signé", { ENTREPRISE_ID: "ent-001", ENTREPRISE: "Cabinet Archipel" }),
   devis("DEV-002", "f761a99b", 115204.42, "retenu", { ENTREPRISE_ID: "ent-002", ENTREPRISE: "CI Construction" }),
-  devis("DEV-003", "b7834961", 54794.87, "reçu", { ENTREPRISE: "Toitures Anjou" }),
+  devis("DEV-003", "b7834961", 54794.87, "reçu", { ENTREPRISE_ID: "ent-014", ENTREPRISE: "Toitures Anjou" }),
   devis("DEV-004", "b7834961", 48495.13, "reçu", { ENTREPRISE: "Couverture Ligérienne" }),
-  devis("DEV-005", "b7016df4", 88293.85, "reçu", { ENTREPRISE: "Menuiseries de l'Ouest" }),
-  devis("DEV-006", "b7016df4", 99838.7, "reçu", { ENTREPRISE: "Fenêtrale 49" }),
+  devis("DEV-005", "b7016df4", 88293.85, "reçu", { ENTREPRISE_ID: "ent-011", ENTREPRISE: "Menuiseries de l'Ouest" }),
+  devis("DEV-006", "b7016df4", 99838.7, "reçu", { ENTREPRISE_ID: "ent-012", ENTREPRISE: "Fenêtrale 49" }),
   devis("DEV-007", "b7016df4", 143704.18, "reçu", { ENTREPRISE: "Alu Concept" }),
   devis("DEV-008", "b7016df4", 120618.63, "reçu", { ENTREPRISE: "Menuiseries Bouchemaine" }),
   devis("DEV-009", "50bc0228", 15228.91, "retenu", { ENTREPRISE_ID: "ent-003", ENTREPRISE: "Alliance Façades" }),
   devis("DEV-010", "65741d05", 61104.78, "retenu", { ENTREPRISE_ID: "ent-004", ENTREPRISE: "Batiplaf" }),
   devis("DEV-011", "7026fcc2", 30758.84, "retenu", { ENTREPRISE_ID: "ent-005", ENTREPRISE: "Elec Services 49" }),
   devis("DEV-012", "6c553fd3", 25126.15, "retenu", { ENTREPRISE_ID: "ent-006", ENTREPRISE: "Plomberie Bouchemaine" }),
-  devis("DEV-013", "edb534d5", 24566.91, "expiré", { ENTREPRISE: "JCM Confort" }),
-  devis("DEV-014", "edb534d5", 25621.91, "expiré", { ENTREPRISE: "JCM Confort" }),
+  devis("DEV-013", "edb534d5", 24566.91, "expiré", { ENTREPRISE_ID: "ent-013", ENTREPRISE: "JCM Confort" }),
+  devis("DEV-014", "edb534d5", 25621.91, "expiré", { ENTREPRISE_ID: "ent-013", ENTREPRISE: "JCM Confort" }),
   devis("DEV-015", "202227d6", 5742.38, "retenu", { ENTREPRISE_ID: "ent-007", ENTREPRISE: "Chape Anjou" }),
   devis("DEV-016", "3da152ea", 30276.29, "retenu", { ENTREPRISE_ID: "ent-008", ENTREPRISE: "Carro Design" }),
   devis("DEV-017", "a56a6230", 44635.2, "retenu", { ENTREPRISE_ID: "ent-009", ENTREPRISE: "Peinture Loire" }),
   devis("DEV-018", "65741d05", 0, "annexe"),
-  devis("DEV-019", "edb534d5", 31702.54, "remplacé", { ENTREPRISE: "JCM Confort" }),
+  devis("DEV-019", "edb534d5", 31702.54, "remplacé", { ENTREPRISE_ID: "ent-013", ENTREPRISE: "JCM Confort" }),
   devis("DEV-020", "", 7535.0, "reçu"),
-  devis("DEV-021", "edb534d5", 32109.94, "expiré", { ENTREPRISE: "JCM Confort" }),
+  devis("DEV-021", "edb534d5", 32109.94, "expiré", { ENTREPRISE_ID: "ent-013", ENTREPRISE: "JCM Confort" }),
   devis("DEV-022", "c223d781", 50329.04, "retenu", { ENTREPRISE_ID: "ent-010", ENTREPRISE: "Piscines de l'Ouest" }),
 ];
 
 export const FIXTURE_AVENANTS: Avenant[] = [];
 export const FIXTURE_FACTURES: Facture[] = [];
 export const FIXTURE_PAIEMENTS: Paiement[] = [];
-export const FIXTURE_ENTREPRISES: Entreprise[] = [];
+
+// Les quinze intervenants du chantier — le répertoire dont dépend la
+// section « Les entreprises » de l'écran Chantier, indépendant des devis
+// (une entreprise y figure même sans devis en cours, comme HMP). L'ordre
+// est celui de l'aperçu (HMP en tête) ; la plupart n'ont pas encore
+// transmis leur attestation — seuls HMP et JCM Confort en ont une,
+// exactement l'état réel du chantier aujourd'hui.
+export const FIXTURE_ENTREPRISES: Entreprise[] = [
+  entreprise("ent-015", "HMP", "Maîtrise d'œuvre", {
+    DECENNALE_ASSUREUR: "Maaf Entreprises",
+    DECENNALE_DEBUT: "01/01/2024",
+    DECENNALE_FIN: "31/12/2026",
+    DECENNALE_ACTIVITES: "Maîtrise d'œuvre",
+    DECENNALE_DRIVE_URL: "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz",
+    ATTESTATION_TVA_REMISE: "oui",
+  }),
+  entreprise("ent-002", "CI Construction", "Gros œuvre, maçonnerie, terrassement"),
+  entreprise("ent-011", "Menuiseries de l'Ouest", "Menuiseries extérieures, fenêtres"),
+  entreprise("ent-004", "Batiplaf", "Plâtrerie, isolation intérieure"),
+  entreprise("ent-001", "Cabinet Archipel", "Architecture, permis de construire"),
+  entreprise("ent-003", "Alliance Façades", "Ravalement, enduits de façade"),
+  entreprise("ent-005", "Elec Services 49", "Installation électrique"),
+  entreprise("ent-006", "Plomberie Bouchemaine", "Plomberie, sanitaires"),
+  entreprise("ent-007", "Chape Anjou", "Chape liquide"),
+  entreprise("ent-008", "Carro Design", "Carrelage, faïence"),
+  entreprise("ent-009", "Peinture Loire", "Peinture, finitions intérieures"),
+  entreprise("ent-010", "Piscines de l'Ouest", "Construction de piscines"),
+  entreprise("ent-012", "Fenêtrale 49", "Menuiseries aluminium"),
+  entreprise("ent-013", "JCM Confort", "Chauffage, pompe à chaleur", {
+    DECENNALE_ASSUREUR: "Groupama",
+    DECENNALE_DEBUT: "01/01/2023",
+    DECENNALE_FIN: "15/07/2026",
+    DECENNALE_ACTIVITES: "Chauffage",
+    DECENNALE_DRIVE_URL: "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz",
+  }),
+  entreprise("ent-014", "Toitures Anjou", "Couverture, zinguerie"),
+];
 
 export const FIXTURE_PROJET: Record<string, string> = {
   BUDGET_CONTRACTUEL_TTC: "629850",
   DATE_OUVERTURE_CHANTIER: "",
   TAUX_RETENUE_GARANTIE: "5",
   DO_SOUSCRITE: "non",
+  DO_ASSUREUR: "",
+  DO_DATE_EFFET: "",
+  DO_DOCUMENT_URL: "",
   MAITRE_OEUVRE: "HMP",
-  DECENNALE_HMP_VALIDITE: "31/12/2026",
 };

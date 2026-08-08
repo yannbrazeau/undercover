@@ -329,6 +329,29 @@
   margin: 2px 0 0;
 }
 
+/* Étiquette d'état — décennale (à réclamer, valide, valide sous réserve, à
+   renouveler) ou connexion. Toujours en toutes lettres minuscules : ce
+   n'est pas un titre, c'est un état ponctuel dans une rangée. */
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 20px;
+  flex: 0 0 auto;
+}
+.tag.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tag.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.tag.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
 /* État vide — une icône dans un cercle blanc en relief, jamais une case vide. */
 .empty {
   display: flex;

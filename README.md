@@ -6,7 +6,7 @@ paiements**, adossé à un Google Sheet qui reste la seule source de vérité.
 - **Cadre** : Next.js (App Router), déploiement Vercel.
 - **Données** : Google Sheets (lecture/écriture) et Google Drive (documents), via OAuth
   au nom de l'utilisateur. Aucune base de données.
-- **Direction visuelle** : « Graphite » — anthracite, bleu acier éteint, gris neutres.
+- **Direction visuelle** : « Jour » — fond clair, accent corail réservé à l'action.
 
 ## Développement
 
@@ -17,11 +17,15 @@ npm run dev
 ```
 
 Sans identifiants Google, l'application démarre et affiche un état « à configurer » ;
-la connexion se vérifie dans l'écran Réglages.
+la connexion se vérifie dans l'écran Chantier.
+
+Pour lancer l'application sans connexion Google (données de référence du chantier
+réel, voir `lib/fixtures.ts`) : `PILOTAGE_FIXTURES=1 npm run dev`. C'est aussi le
+mode utilisé par les captures de référence (`npm run test:ecrans`).
 
 ## Structure
 
-- `app/` — écrans (Budget, Lots, Ajouter, Réglages) et routes API.
+- `app/` — écrans (Budget, Lots, Ajouter, Chantier, Entreprises) et routes API.
 - `app/styles/` — `tokens.css` (variables), `base.css`, `screens.css`.
 - `lib/` — accès Google (`google`, `sheets`, `drive`), calculs (`facture`), formats.
 - `components/` — coque : navigation, en-tête, icônes.

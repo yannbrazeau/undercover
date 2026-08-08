@@ -71,12 +71,20 @@ test("Ajouter", async ({ page }) => {
   await screenshotPleinePage(page, "ajouter.png");
 });
 
-test("Réglages", async ({ page }) => {
-  await page.goto("/reglages");
-  await expect(page.getByText("HMP", { exact: true })).toBeVisible();
-  await screenshotPleinePage(page, "reglages.png");
+test("Chantier", async ({ page }) => {
+  await page.goto("/chantier");
+  await expect(page.getByText("établi")).toBeVisible();
+  await screenshotPleinePage(page, "chantier.png");
 });
 
-// La « Fiche entreprise » de la maquette n'existe pas encore côté
-// application (pas d'écran, pas de route) — signalé plutôt que passé sous silence.
-test.fixme("Fiche entreprise — écran pas encore construit", async () => {});
+test("Entreprises", async ({ page }) => {
+  await page.goto("/entreprises");
+  await expect(page.getByText("15 entreprises")).toBeVisible();
+  await screenshotPleinePage(page, "entreprises.png");
+});
+
+test("Fiche entreprise", async ({ page }) => {
+  await page.goto("/entreprises/ent-002");
+  await expect(page.getByText("115 204,42 €")).toBeVisible();
+  await screenshotPleinePage(page, "fiche-entreprise.png");
+});

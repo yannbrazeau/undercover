@@ -324,6 +324,14 @@ label {
 .note.big .m {
   color: #7d6631;
 }
+/* Variante pour un état déjà dégradé (décennale expirée) — même forme,
+   teinte danger plutôt que warn par défaut. */
+.note.danger {
+  background: var(--danger-soft);
+}
+.note.danger .m {
+  color: var(--danger);
+}
 .note .t {
   font-size: 14.5px;
   font-weight: 600;

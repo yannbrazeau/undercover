@@ -59,11 +59,15 @@ export type Entreprise = {
   ENTREPRISE_ID: string;
   NOM: string;
   ACTIVITE: string;
+  DECENNALE_ASSUREUR: string;
   DECENNALE_DEBUT: string;
   DECENNALE_FIN: string;
   DECENNALE_ACTIVITES: string;
   DECENNALE_DRIVE_URL: string;
   ATTESTATION_TVA_REMISE: string; // oui/non — remise du CERFA, action unique, sans calcul
+  SIRET: string;
+  CONTACT: string;
+  DRIVE_FOLDER_ID: string; // dossier de documents de l'entreprise, créé au premier envoi
 };
 
 export type Facture = {
@@ -113,7 +117,9 @@ export type ProjetParams = {
   budgetContractuel: number;
   dateOuvertureChantier: string; // vide tant que non déclarée
   tauxRetenueGarantie: number;
-  doSouscrite: boolean; // dommages-ouvrage, à souscrire avant l'ouverture du chantier
+  doSouscrite: boolean; // dommages-ouvrage — la seule assurance de Yann, pas celle d'une entreprise
+  doAssureur: string;
+  doDateEffet: string; // JJ/MM/AAAA, vide si non renseignée
+  doDocumentUrl: string;
   maitreOeuvre: string;
-  decennaleHmpValidite: string; // date JJ/MM/AAAA, vide si non renseignée
 };
